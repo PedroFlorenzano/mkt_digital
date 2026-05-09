@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
@@ -47,6 +47,29 @@ export default function OnboardingPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Carrega dados existentes da empresa para edição
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/company")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.id) return;
+        if (data.name) setCompanyName(data.name);
+        if (data.description) setDescription(data.description);
+        if (data.sector) setSector(data.sector);
+        if (data.objective) setObjective(data.objective);
+        if (data.tone) setTone(data.tone);
+        if (data.colors) {
+          const parsed = typeof data.colors === "string"
+            ? JSON.parse(data.colors)
+            : data.colors;
+          if (Array.isArray(parsed) && parsed.length > 0) setColors(parsed);
+        }
+        if (data.logoUrl) setLogoPreview(data.logoUrl);
+      })
+      .catch(() => {});
+  }, [session]);
 
   function handleLogoChange(event: React.ChangeEvent<HTMLInputElement>) {
     setError("");
@@ -130,7 +153,7 @@ export default function OnboardingPage() {
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Configure sua empresa</h1>
-          <p className="text-gray-500 mt-2">Passo {step} de 3</p>
+          <p className="text-gray-500 mt-2">Passo {step} de 3 — você pode alterar a qualquer momento</p>
           <div className="mt-4 flex gap-2 justify-center">
             {[1, 2, 3].map((s) => (
               <div
@@ -154,7 +177,7 @@ export default function OnboardingPage() {
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 bg-white placeholder-gray-400"
                   placeholder="Minha Empresa LTDA"
                 />
               </div>
@@ -166,7 +189,7 @@ export default function OnboardingPage() {
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none text-gray-900 bg-white placeholder-gray-400"
                   rows={3}
                   placeholder="Descreva brevemente o que sua empresa faz, produtos/serviços oferecidos..."
                 />
@@ -179,7 +202,7 @@ export default function OnboardingPage() {
                 <select
                   value={sector}
                   onChange={(e) => setSector(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 bg-white"
                 >
                   <option value="">Selecione o setor</option>
                   {SECTORS.map((s) => (
@@ -196,7 +219,7 @@ export default function OnboardingPage() {
                   type="text"
                   value={objective}
                   onChange={(e) => setObjective(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 bg-white placeholder-gray-400"
                   placeholder="Ex: Aumentar vendas, gerar leads, fortalecer marca..."
                 />
               </div>

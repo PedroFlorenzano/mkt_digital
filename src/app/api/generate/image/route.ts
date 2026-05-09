@@ -70,8 +70,8 @@ export async function POST(request: Request) {
     `Target: ${platform} post.`,
     style ? `Style: ${style}.` : "Style: modern, clean, professional.",
     referenceContext ? `Visual reference context: ${referenceContext}.` : "",
-    trendingContext ? `Current trending topic to incorporate: ${trendingContext}.` : "",
-    "High quality, no text overlay, no watermark.",
+    trendingContext ? `Additional context and trending topic to incorporate: ${trendingContext}.` : "",
+    "High quality photorealistic image. Absolutely NO text, NO words, NO letters, NO numbers, NO captions, NO watermarks, NO overlays of any kind. Pure visual imagery only.",
   ]
     .filter(Boolean)
     .join(" ");

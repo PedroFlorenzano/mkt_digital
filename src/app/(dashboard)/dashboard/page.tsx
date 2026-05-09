@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface Company {
   id: string;
@@ -12,6 +13,7 @@ interface Company {
   sector: string | null;
   tone: string;
   colors: string[] | null;
+  logoUrl: string | null;
   socialAccounts: { platform: string; connected: boolean; profileName: string | null }[];
 }
 
@@ -87,8 +89,24 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-xl border border-gray-200">
             <h3 className="text-sm font-medium text-gray-500">Empresa</h3>
-            <p className="text-lg font-semibold text-gray-900 mt-1">{company.name}</p>
-            <p className="text-sm text-gray-500 mt-1">{company.sector}</p>
+            <div className="flex items-center gap-4 mt-2">
+              {company.logoUrl && (
+                <div className="relative w-14 h-14 flex-shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
+                  <Image
+                    src={company.logoUrl}
+                    alt={`Logo ${company.name}`}
+                    fill
+                    sizes="56px"
+                    className="object-contain p-1"
+                    unoptimized
+                  />
+                </div>
+              )}
+              <div>
+                <p className="text-lg font-semibold text-gray-900">{company.name}</p>
+                <p className="text-sm text-gray-500">{company.sector}</p>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white p-6 rounded-xl border border-gray-200">
@@ -165,6 +183,12 @@ export default function DashboardPage() {
                 className="block w-full p-4 rounded-lg bg-orange-50 text-orange-700 font-medium hover:bg-orange-100 transition text-left"
               >
                 Ver custos de IA
+              </Link>
+              <Link
+                href="/onboarding"
+                className="block w-full p-4 rounded-lg bg-gray-50 text-gray-700 font-medium hover:bg-gray-100 transition text-left"
+              >
+                ⚙️ Editar empresa (cores, logo, tom)
               </Link>
             </div>
           </div>

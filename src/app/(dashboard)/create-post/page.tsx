@@ -19,7 +19,7 @@ export default function CreatePostPage() {
 
   const [platform, setPlatform] = useState("instagram");
   const [idea, setIdea] = useState("");
-  const [topic, setTopic] = useState("");
+  const [additionalContext, setAdditionalContext] = useState("");
   const [style, setStyle] = useState("");
 
   const [textOptions, setTextOptions] = useState<TextOption[]>([]);
@@ -115,7 +115,9 @@ export default function CreatePostPage() {
   }
 
   function selectTrend(trend: TrendItem) {
-    setTopic(trend.title);
+    setAdditionalContext((prev) =>
+      prev ? `${prev}\n- ${trend.title} (${trend.source})` : `- ${trend.title} (${trend.source})`
+    );
     setTrendingContext((prev) =>
       prev ? `${prev}\n- ${trend.title} (${trend.source})` : `- ${trend.title} (${trend.source})`
     );
@@ -135,8 +137,8 @@ export default function CreatePostPage() {
         body: JSON.stringify({
           platform,
           idea,
-          topic,
-          trendingContext,
+          topic: additionalContext,
+          trendingContext: trendingContext || additionalContext,
           referenceImages: referenceImages.map((img) => img.url),
         }),
       });
@@ -170,7 +172,7 @@ export default function CreatePostPage() {
           referenceContext: referenceImages.length > 0
             ? `User uploaded ${referenceImages.length} reference images showing desired visual style`
             : "",
-          trendingContext: trendingContext || topic || "",
+          trendingContext: trendingContext || additionalContext || "",
         }),
       });
 
@@ -285,7 +287,7 @@ export default function CreatePostPage() {
                 type="text"
                 value={style}
                 onChange={(e) => setStyle(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 bg-white placeholder-gray-400"
                 placeholder="Ex: minimalista, colorido, corporativo..."
               />
             </div>
@@ -299,7 +301,7 @@ export default function CreatePostPage() {
               <textarea
                 value={idea}
                 onChange={(e) => setIdea(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none text-gray-900 bg-white placeholder-gray-400"
                 rows={3}
                 placeholder="Descreva a ideia do post ou deixe em branco para sugestões automáticas..."
               />
@@ -307,15 +309,18 @@ export default function CreatePostPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Assunto do momento
+                Contexto adicional
               </label>
               <div className="relative">
                 <textarea
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  className="w-full px-4 py-2 pr-24 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                  value={additionalContext}
+                  onChange={(e) => {
+                    setAdditionalContext(e.target.value);
+                    setTrendingContext(e.target.value);
+                  }}
+                  className="w-full px-4 py-2 pr-24 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none text-gray-900 bg-white placeholder-gray-400"
                   rows={3}
-                  placeholder="Clique 'Buscar' para ver o que está em alta agora..."
+                  placeholder="Descreva o contexto, tema ou assunto do momento. Clique 'Buscar' para ver o que está em alta..."
                 />
                 <button
                   type="button"
@@ -328,7 +333,7 @@ export default function CreatePostPage() {
               </div>
               {trendingContext && (
                 <p className="text-xs text-green-600 mt-1">
-                  Contexto trending carregado ({trendingContext.split("\n").length} assuntos)
+                  Contexto carregado ({trendingContext.split("\n").length} linha(s))
                 </p>
               )}
             </div>
@@ -581,7 +586,7 @@ export default function CreatePostPage() {
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 bg-white"
               />
               <p className="text-xs text-gray-500 mt-1">
                 Sem data: post fica como rascunho. Com data: fica agendado.
