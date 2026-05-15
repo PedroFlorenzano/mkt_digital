@@ -95,11 +95,45 @@ async function main() {
     ],
   });
 
+  // ── Agencia plan + subscription for demo user ─────────────────────────────
+  const agenciaPlan = await prisma.plan.upsert({
+    where: { id: "plan-agencia" },
+    update: { name: "Agencia", isActive: true },
+    create: {
+      id: "plan-agencia",
+      name: "Agencia",
+      priceMonthlyUsd: 599,
+      priceYearlyUsd: 5990,
+      aiImageCreditsPerMonth: 9999,
+      aiTextCreditsPerMonth: 9999,
+      isActive: true,
+    },
+  });
+
+  const now2 = new Date();
+  await prisma.subscription.upsert({
+    where: { userId: user.id },
+    update: {
+      planId: agenciaPlan.id,
+      status: "active",
+      currentPeriodEnd: new Date(now2.getFullYear() + 2, now2.getMonth(), now2.getDate()),
+    },
+    create: {
+      userId: user.id,
+      planId: agenciaPlan.id,
+      status: "active",
+      currentPeriodStart: now2,
+      currentPeriodEnd: new Date(now2.getFullYear() + 2, now2.getMonth(), now2.getDate()),
+      paymentProvider: "demo",
+    },
+  });
+
   console.log("Seed executado com sucesso!");
   console.log("---");
   console.log("Credenciais de demo:");
   console.log("Email: demo@mktdigital.com");
   console.log("Senha: demo123");
+  console.log("Plano: Agencia (acesso total)");
 }
 
 main()

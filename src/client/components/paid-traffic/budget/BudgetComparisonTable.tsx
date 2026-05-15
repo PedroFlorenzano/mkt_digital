@@ -31,6 +31,37 @@ interface ConfirmModalAllocation {
   newBudget: number;
 }
 
+// Shape returned by the API (/api/paid-traffic/budget-intelligence)
+interface BudgetApiResponse {
+  allocations: Array<{
+    campaignId: string;
+    campaignName: string;
+    platform: string;
+    currentDailyBudgetBrl: number;
+    recommendedDailyBudgetBrl: number;
+    changePercent: number;
+    dataConfidence: "sufficient" | "insufficient";
+    justification: string;
+  }>;
+  aiSummary: string;
+  totalCurrentBrl: number;
+  totalRecommendedBrl: number;
+  generatedAt: string;
+}
+
+function mapApiToRecommendations(data: BudgetApiResponse): BudgetRecommendation[] {
+  return (data.allocations ?? []).map((a) => ({
+    campaignId: a.campaignId,
+    campaignName: a.campaignName,
+    platform: a.platform,
+    currentDailyBudgetBrl: a.currentDailyBudgetBrl,
+    recommendedDailyBudgetBrl: a.recommendedDailyBudgetBrl,
+    variationPercent: a.changePercent,
+    dataConfidence: a.dataConfidence,
+    aiJustification: a.justification,
+  }));
+}
+
 function fmtBrl(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -72,10 +103,10 @@ export function BudgetComparisonTable() {
     fetch("/api/paid-traffic/budget-intelligence")
       .then((res) => {
         if (!res.ok) throw new Error("Falha ao carregar recomendações");
-        return res.json() as Promise<{ recommendations: BudgetRecommendation[] }>;
+        return res.json() as Promise<BudgetApiResponse>;
       })
       .then((data) => {
-        setRecommendations(data.recommendations ?? []);
+        setRecommendations(mapApiToRecommendations(data));
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -164,9 +195,9 @@ export function BudgetComparisonTable() {
               setError(null);
               setLoading(true);
               fetch("/api/paid-traffic/budget-intelligence")
-                .then((r) => r.json() as Promise<{ recommendations: BudgetRecommendation[] }>)
+                .then((r) => r.json() as Promise<BudgetApiResponse>)
                 .then((data) => {
-                  setRecommendations(data.recommendations ?? []);
+                  setRecommendations(mapApiToRecommendations(data));
                   setLoading(false);
                 })
                 .catch(() => {

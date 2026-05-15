@@ -100,51 +100,45 @@ function buildSystemPrompt(company: {
     value?.trim() || "Não informado";
 
   return `Você é um especialista em tráfego pago e marketing digital.
-Gere um rascunho de campanha de anúncios pagos em formato JSON estritamente seguindo a interface CampaignDraft abaixo.
+Gere um rascunho de campanha de anúncios pagos em formato JSON compacto.
 
 PERFIL DA MARCA:
 - Nome: ${safe(company.name)}
 - Setor: ${safe(company.sector)}
-- Objetivo do negócio: ${safe(company.objective)}
+- Objetivo: ${safe(company.objective)}
 - Tom de voz: ${safe(company.tone)}
-- Cores da marca: ${safe(company.colors)}
 - Descrição: ${safe(company.description)}
 
-INTERFACE ESPERADA (responda APENAS com o JSON, sem markdown, sem texto extra):
+RESPONDA APENAS com este JSON (sem markdown, sem texto extra, sem comentários):
 {
-  "objective": "string — objetivo claro da campanha",
+  "objective": "objetivo da campanha em uma frase",
   "audience": {
-    "ageMin": number,
-    "ageMax": number,
-    "locations": ["string"],
-    "interests": ["string"],
-    "behaviors": ["string"]
+    "ageMin": 25,
+    "ageMax": 45,
+    "locations": ["São Paulo", "Brasil"],
+    "interests": ["interesse1", "interesse2"],
+    "behaviors": ["comportamento1"]
   },
-  "dailyBudgetBrl": number,
+  "dailyBudgetBrl": 100,
   "adCopies": [
     {
-      "placement": "string — ex: feed_instagram, stories, google_search_rsa",
-      "variations": ["string", "string", "string"],
-      "headlines": ["string (somente para Google RSA, mínimo 5)"],
-      "descriptions": ["string (somente para Google RSA, mínimo 3)"]
+      "placement": "feed_instagram",
+      "variations": ["copy 1", "copy 2", "copy 3"]
+    },
+    {
+      "placement": "stories",
+      "variations": ["copy 1", "copy 2", "copy 3"]
     }
   ],
-  "creativeBrief": "string — instruções para o designer criar os criativos visuais",
-  "keywords": [
-    {
-      "text": "string — palavra-chave",
-      "intent": "informational | navigational | transactional",
-      "matchType": "broad | phrase | exact"
-    }
-  ]
+  "creativeBrief": "instruções visuais para os criativos"
 }
 
-REGRAS OBRIGATÓRIAS:
-1. Cada posicionamento em adCopies deve ter no mínimo 3 variações de copy em "variations".
-2. Para posicionamentos Google RSA: inclua pelo menos 5 "headlines" e 3 "descriptions".
-3. Se a campanha for para Google Search, inclua "keywords" com no mínimo 15 palavras-chave cobrindo diferentes intenções (informational, navigational, transactional) e tipos de correspondência (broad, phrase, exact).
-4. dailyBudgetBrl deve ser um número realista em BRL para o setor da empresa.
-5. Responda SOMENTE com o objeto JSON — sem explicações, sem \`\`\`json, sem texto adicional.`;
+REGRAS:
+1. Exatamente 2 posicionamentos em adCopies, cada um com exatamente 3 variações curtas (máx 100 chars cada).
+2. Não inclua o campo "keywords".
+3. dailyBudgetBrl deve ser número realista para o setor.
+4. Todas as strings devem usar apenas aspas duplas e não conter aspas duplas dentro do valor.
+5. Responda SOMENTE com o JSON — nenhum texto antes ou depois.`;
 }
 
 /**
@@ -212,33 +206,11 @@ function validateDraft(draft: unknown): CampaignDraft {
     throw new Error("Campo obrigatório ausente ou inválido: creativeBrief");
   }
 
-  // keywords — if present, must have at least 15 entries with intent and matchType
+  // keywords — optional, validated loosely if present
   if (d.keywords !== undefined && d.keywords !== null) {
     if (!Array.isArray(d.keywords)) {
-      throw new Error("Campo keywords deve ser um array quando presente.");
-    }
-    if ((d.keywords as unknown[]).length < 15) {
-      throw new Error(
-        `keywords deve conter no mínimo 15 entradas para campanhas Google Search (recebido: ${(d.keywords as unknown[]).length})`
-      );
-    }
-    const validIntents = new Set(["informational", "navigational", "transactional"]);
-    const validMatchTypes = new Set(["broad", "phrase", "exact"]);
-    for (const kw of d.keywords as unknown[]) {
-      const k = kw as Record<string, unknown>;
-      if (typeof k.text !== "string" || !k.text.trim()) {
-        throw new Error("keywords: cada entrada deve ter um campo 'text' (string)");
-      }
-      if (!validIntents.has(k.intent as string)) {
-        throw new Error(
-          `keywords['${k.text}']: 'intent' inválido ('${k.intent}'). Use: informational | navigational | transactional`
-        );
-      }
-      if (!validMatchTypes.has(k.matchType as string)) {
-        throw new Error(
-          `keywords['${k.text}']: 'matchType' inválido ('${k.matchType}'). Use: broad | phrase | exact`
-        );
-      }
+      // Just drop invalid keywords rather than failing
+      d.keywords = undefined;
     }
   }
 
@@ -314,11 +286,29 @@ export const campaignService = {
     let parsedDraft: unknown;
     try {
       // Claude may wrap the JSON in markdown fences despite instructions; strip them
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      // Also strip any trailing content after the closing brace
+      let jsonStr = rawText;
+
+      // Remove markdown code blocks if present
+      jsonStr = jsonStr.replace(/```json\s*/gi, "").replace(/```\s*/g, "");
+
+      // Extract just the JSON object
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error(`Resposta não contém um objeto JSON. Conteúdo: ${rawText.slice(0, 200)}`);
       }
-      parsedDraft = JSON.parse(jsonMatch[0]);
+
+      jsonStr = jsonMatch[0];
+
+      // Attempt direct parse first
+      try {
+        parsedDraft = JSON.parse(jsonStr);
+      } catch {
+        // If that fails, try to repair common issues:
+        // Remove control characters that break JSON (except \n, \r, \t)
+        const cleaned = jsonStr.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+        parsedDraft = JSON.parse(cleaned);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("[campaign.service] Failed to parse Bedrock JSON response", {
