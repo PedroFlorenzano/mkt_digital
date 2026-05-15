@@ -1,7 +1,7 @@
-import { postRepository, type CreatePostData } from "@/lib/repositories/post.repository";
-import { companyRepository } from "@/lib/repositories/company.repository";
-import { NotFoundError, ForbiddenError, ValidationError } from "@/lib/errors";
-import { logger } from "@/lib/logger";
+import { postRepository, type CreatePostData } from "@server/repositories/post.repository";
+import { companyRepository } from "@server/repositories/company.repository";
+import { NotFoundError, ForbiddenError, ValidationError } from "@server/lib/errors";
+import { logger } from "@server/lib/logger";
 import type { Post } from "@prisma/client";
 
 const VALID_PLATFORMS = ["instagram", "facebook", "linkedin", "whatsapp"] as const;

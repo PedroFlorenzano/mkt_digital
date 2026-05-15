@@ -5,7 +5,7 @@ import {
   UnauthorizedError,
   ForbiddenError,
   ExternalServiceError,
-} from "@/lib/errors";
+} from "@server/lib/errors";
 
 describe("AppError", () => {
   it("creates error with correct properties", () => {

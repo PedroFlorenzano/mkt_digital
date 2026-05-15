@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@server/lib/prisma";
 import type { Post, PostVariant } from "@prisma/client";
 
 export type PostWithVariants = Post & { variants: PostVariant[] };

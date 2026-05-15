@@ -1,9 +1,9 @@
-import { companyService } from "@/lib/services/company.service";
-import { companyRepository } from "@/lib/repositories/company.repository";
-import { ValidationError, NotFoundError } from "@/lib/errors";
+import { companyService } from "@server/services/company.service";
+import { companyRepository } from "@server/repositories/company.repository";
+import { ValidationError, NotFoundError } from "@server/lib/errors";
 
-jest.mock("@/lib/repositories/company.repository");
-jest.mock("@/lib/logger", () => ({
+jest.mock("@server/repositories/company.repository");
+jest.mock("@server/lib/logger", () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 

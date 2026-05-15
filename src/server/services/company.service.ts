@@ -1,6 +1,6 @@
-import { companyRepository, type CompanyWithSocial } from "@/lib/repositories/company.repository";
-import { NotFoundError, ValidationError } from "@/lib/errors";
-import { logger } from "@/lib/logger";
+import { companyRepository, type CompanyWithSocial } from "@server/repositories/company.repository";
+import { NotFoundError, ValidationError } from "@server/lib/errors";
+import { logger } from "@server/lib/logger";
 import type { Company } from "@prisma/client";
 
 export const companyService = {

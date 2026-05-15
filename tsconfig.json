@@ -18,7 +18,11 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@client/*": ["./src/client/*"],
+      "@server/*": ["./src/server/*"],
+      "@ui/*": ["./src/client/components/ui/*"],
+      "@components/*": ["./src/client/components/*"]
     }
   },
   "include": [

@@ -3,15 +3,15 @@
  * All repository and external dependencies are mocked.
  */
 
-import { postService } from "@/lib/services/post.service";
-import { postRepository } from "@/lib/repositories/post.repository";
-import { companyRepository } from "@/lib/repositories/company.repository";
-import { NotFoundError, ForbiddenError, ValidationError } from "@/lib/errors";
+import { postService } from "@server/services/post.service";
+import { postRepository } from "@server/repositories/post.repository";
+import { companyRepository } from "@server/repositories/company.repository";
+import { NotFoundError, ForbiddenError, ValidationError } from "@server/lib/errors";
 
 // Mock repositories
-jest.mock("@/lib/repositories/post.repository");
-jest.mock("@/lib/repositories/company.repository");
-jest.mock("@/lib/logger", () => ({
+jest.mock("@server/repositories/post.repository");
+jest.mock("@server/repositories/company.repository");
+jest.mock("@server/lib/logger", () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
@@ -93,10 +93,12 @@ describe("PostService", () => {
     });
 
     it("creates post with correct data (round-trip property)", async () => {
-      jest.mocked(companyRepository.findByUserId).mockResolvedValue(mockCompany);
-      jest.mocked(postRepository.create).mockResolvedValue(mockPost);
-
       const input = { platform: "instagram" as const, content: "Hello world" };
+      const expectedPost = { ...mockPost, content: input.content, platform: input.platform };
+
+      jest.mocked(companyRepository.findByUserId).mockResolvedValue(mockCompany);
+      jest.mocked(postRepository.create).mockResolvedValue(expectedPost);
+
       const post = await postService.create("user-1", input);
 
       expect(post.platform).toBe(input.platform);

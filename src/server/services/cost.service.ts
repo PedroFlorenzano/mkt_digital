@@ -1,6 +1,6 @@
-import { costRepository } from "@/lib/repositories/cost.repository";
-import { companyRepository } from "@/lib/repositories/company.repository";
-import { NotFoundError } from "@/lib/errors";
+import { costRepository } from "@server/repositories/cost.repository";
+import { companyRepository } from "@server/repositories/company.repository";
+import { NotFoundError } from "@server/lib/errors";
 import type { CostLog } from "@prisma/client";
 
 export interface CostSummary {
