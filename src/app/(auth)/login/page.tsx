@@ -9,6 +9,7 @@ import { Button } from "@client/components/ui/button";
 import { Input } from "@client/components/ui/input";
 import { Label } from "@client/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@client/components/ui/card";
+import { Logo } from "@client/components/ui/logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,11 +42,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-200">
-            <Sparkles className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-gray-900">MKT Digital</span>
+        <div className="flex justify-center mb-8">
+          <Logo size="md" />
         </div>
 
         <Card className="shadow-xl border-0">

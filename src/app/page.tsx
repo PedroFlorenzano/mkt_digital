@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo, LogoLight } from "@client/components/ui/logo";
 import { Button } from "@client/components/ui/button";
 import { Badge } from "@client/components/ui/badge";
 import {
@@ -89,9 +90,10 @@ const plans = [
       "1 rede social",
       "Geração de texto com IA",
       "Geração de imagem com IA",
+      "Agendamento automático",
       "Suporte por e-mail",
     ],
-    missing: ["Agendamento automático", "Trending Topics", "Suporte prioritário"],
+    missing: ["Trending Topics", "Suporte prioritário"],
     cta: "Assinar Starter",
     ctaVariant: "outline" as const,
   },
@@ -183,10 +185,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-lg font-bold text-gray-900">MKT Digital</span>
+              <Logo size="sm" />
             </div>
             <div className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
               <a href="#funcionalidades" className="hover:text-gray-900 transition-colors">Funcionalidades</a>
@@ -217,9 +216,20 @@ export default function Home() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20 text-center">
+          {/* Logo icon grande acima do nome */}
+          <div className="flex flex-col items-center mb-6">
+            <Logo size="xl" variant="icon" />
+            <span className="mt-4 text-3xl font-black tracking-tight"
+              style={{ letterSpacing: "-0.02em" }}>
+              <span className="text-gray-900">MKT</span>
+              <span style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                Digital
+              </span>
+            </span>
+          </div>
           <Badge variant="secondary" className="mb-6 gap-1.5 px-3 py-1.5">
             <Zap className="h-3 w-3 text-blue-600" />
-            <span className="text-blue-700 font-medium">Claude Sonnet 4.6 + Stable Diffusion Ultra</span>
+            <span className="text-blue-700 font-medium">Inteligência Artificial de última geração</span>
           </Badge>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 leading-[1.1] tracking-tight">
@@ -482,7 +492,7 @@ export default function Home() {
                   <ArrowRight className="h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="xl" variant="outline" className="border-white/30 text-white hover:bg-white/10" asChild>
+              <Button size="xl" variant="outline" className="border-white text-white bg-white/10 hover:bg-white/20" asChild>
                 <Link href="/login">Já tenho conta</Link>
               </Button>
             </div>
@@ -495,10 +505,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
-              </div>
-              <span className="font-semibold text-gray-700">MKT Digital</span>
+              <Logo size="sm" />
             </div>
             <div className="flex gap-6">
               <a href="#funcionalidades" className="hover:text-gray-600 transition-colors">Funcionalidades</a>

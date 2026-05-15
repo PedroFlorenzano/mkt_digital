@@ -35,6 +35,9 @@ export const env = {
   AWS_BEDROCK_TEXT_REGION: optionalEnv("AWS_BEDROCK_TEXT_REGION", "us-east-1"),
   AWS_BEDROCK_IMAGE_REGION: optionalEnv("AWS_BEDROCK_IMAGE_REGION", "us-west-2"),
 
+  // Credential encryption (validation enforced at module load in credential-crypto.ts)
+  CREDENTIAL_ENCRYPTION_KEY: optionalEnv("CREDENTIAL_ENCRYPTION_KEY", ""),
+
   // Cron
   CRON_SECRET: requireEnv("CRON_SECRET"),
 

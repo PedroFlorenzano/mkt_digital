@@ -83,10 +83,14 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  socialAccounts SocialAccount[]
-  posts          Post[]
-  costLogs       CostLog[]
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialAccounts    SocialAccount[]
+  posts             Post[]
+  costLogs          CostLog[]
+  adCredentials     AdPlatformCredential[]
+  adCampaigns       AdCampaign[]
+  automationRules   AutomationRule[]
+  campaignAuditLogs CampaignAuditLog[]
 }
 
 model SocialAccount {
@@ -191,4 +195,171 @@ model Subscription {
 
   @@index([userId])
   @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// Módulo: Tráfego Pago com IA
+// ─────────────────────────────────────────────
+
+/// Credenciais de API criptografadas por empresa/plataforma.
+/// O campo encryptedData armazena um JSON serializado com { iv, tag, data } (AES-256-GCM).
+model AdPlatformCredential {
+  id            String    @id @default(cuid())
+  companyId     String
+  platform      String    // 'meta' | 'google'
+  encryptedData String    // JSON: { iv: string, tag: string, data: string }
+  isValid       Boolean   @default(false)
+  validatedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  campaigns AdCampaign[]
+
+  @@unique([companyId, platform])
+  @@index([companyId])
+}
+
+/// Campanha de anúncio pago — vincula ID interno ao ID externo da plataforma.
+model AdCampaign {
+  id                 String    @id @default(cuid())
+  companyId          String
+  credentialId       String
+  platform           String    // 'meta' | 'google'
+  campaignType       String    // 'search' | 'display' | 'social'
+  name               String
+  objective          String
+  dailyBudgetBrl     Float
+  status             String    @default("draft")
+  // 'draft' | 'active' | 'paused' | 'ended' | 'error'
+  externalCampaignId String?
+  externalAdSetId    String?
+  externalAdIds      String?   // JSON array de IDs
+  managerUrl         String?
+  aiDraftJson        String?   // JSON: CampaignDraft gerado pela IA
+  launchedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company    Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  credential AdPlatformCredential @relation(fields: [credentialId], references: [id])
+  metrics    AdMetricSnapshot[]
+  rules      AutomationRule[]
+  abTests    AbTest[]
+  auditLogs  CampaignAuditLog[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([platform])
+}
+
+/// Snapshot de métricas coletadas periodicamente pelo monitor de performance.
+/// Retido por no mínimo 90 dias (política de retenção aplicada via job de limpeza).
+model AdMetricSnapshot {
+  id          String   @id @default(cuid())
+  campaignId  String
+  collectedAt DateTime @default(now())
+  periodStart DateTime
+  periodEnd   DateTime
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  conversions Int      @default(0)
+  spendBrl    Float    @default(0)
+  ctr         Float    @default(0)  // clicks / impressions
+  cpc         Float    @default(0)  // spendBrl / clicks
+  roas        Float    @default(0)  // revenue / spendBrl
+  rawJson     String?  // resposta bruta da API (para auditoria)
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([campaignId, collectedAt])
+  @@index([collectedAt])
+}
+
+/// Regra de automação definida pelo usuário: condição + ação.
+model AutomationRule {
+  id            String   @id @default(cuid())
+  companyId     String
+  campaignId    String?  // null = regra global para todas as campanhas da empresa
+  name          String
+  isActive      Boolean  @default(true)
+  // Condição — serializada como JSON: { metric, operator, value }
+  conditionJson String
+  // Ação — serializada como JSON: { type, budgetIncreasePercent? }
+  actionJson    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  campaign   AdCampaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  executions RuleExecutionLog[]
+
+  @@index([companyId])
+  @@index([companyId, isActive])
+}
+
+/// Log imutável de cada avaliação/execução de uma regra de automação.
+model RuleExecutionLog {
+  id          String   @id @default(cuid())
+  ruleId      String
+  campaignId  String
+  executedAt  DateTime @default(now())
+  triggered   Boolean  // true se a condição foi satisfeita
+  // 'executed' | 'pending_confirmation' | 'failed' | 'skipped'
+  outcome     String
+  errorMsg    String?
+  apiResponse String?  // JSON da resposta da API externa
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([campaignId])
+  @@index([executedAt])
+}
+
+/// Teste A/B de criativos para uma campanha.
+model AbTest {
+  id             String    @id @default(cuid())
+  campaignId     String
+  status         String    @default("active")  // 'active' | 'completed' | 'extended' | 'timeout'
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  winnerAdId     String?   // externalAdId da variação vencedora
+  // JSON array de AbTestVariation
+  variationsJson String
+  // Resumo do resultado gerado pela IA após encerramento
+  resultSummary  String?
+  extensionCount Int       @default(0)  // quantas extensões de 24h foram aplicadas
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+/// Log de auditoria imutável — registra toda ação automatizada.
+/// Registros retidos por no mínimo 12 meses.
+model CampaignAuditLog {
+  id                   String    @id @default(cuid())
+  companyId            String
+  campaignId           String?
+  actionType           String    // ver AuditActionType
+  source               String    // 'rule_engine' | 'ab_test' | 'budget_manager' | 'performance_monitor' | 'user'
+  previousValues       String?   // JSON
+  newValues            String?   // JSON
+  metadata             String?   // JSON (contexto extra)
+  // Campos de confirmação (apenas ações acima do threshold)
+  requiresConfirmation Boolean   @default(false)
+  userDecision         String?   // 'approved' | 'rejected' | null
+  userDecisionAt       DateTime?
+  createdAt            DateTime  @default(now())
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  campaign AdCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([companyId, actionType])
+  @@index([companyId, createdAt])
+  @@index([campaignId])
 }
