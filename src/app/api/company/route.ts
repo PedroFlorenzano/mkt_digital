@@ -1,70 +1,54 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { companyService } from "@/lib/services/company.service";
+import { withErrorHandler } from "@/lib/api-handler";
+import { UnauthorizedError } from "@/lib/errors";
 
-export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+function parseColors(colors: unknown): string[] {
+  if (typeof colors === "string") {
+    try {
+      const parsed = JSON.parse(colors) as unknown;
+      if (Array.isArray(parsed)) return parsed.filter((c): c is string => typeof c === "string");
+    } catch { /* ignore */ }
   }
+  if (Array.isArray(colors)) return colors.filter((c): c is string => typeof c === "string");
+  return [];
+}
+
+export const GET = withErrorHandler(async () => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new UnauthorizedError();
 
   const userId = (session.user as { id: string }).id;
-  const body = await request.json();
-  const { name, description, sector, objective, tone, colors } = body;
+  const company = await companyService.getWithSocialByUserId(userId);
 
-  if (!name) {
-    return NextResponse.json(
-      { error: "Nome da empresa é obrigatório" },
-      { status: 400 }
-    );
-  }
+  if (!company) return NextResponse.json(null);
 
-  const colorsStr = Array.isArray(colors) ? JSON.stringify(colors) : colors;
+  return NextResponse.json({
+    ...company,
+    colors: parseColors(company.colors),
+  });
+});
 
-  const company = await prisma.company.upsert({
-    where: { userId },
-    update: { name, description, sector, objective, tone, colors: colorsStr },
-    create: { userId, name, description, sector, objective, tone, colors: colorsStr },
+export const POST = withErrorHandler(async (request: Request) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new UnauthorizedError();
+
+  const userId = (session.user as { id: string }).id;
+  const body = await request.json() as Record<string, unknown>;
+
+  const company = await companyService.upsert(userId, {
+    name: typeof body["name"] === "string" ? body["name"] : "",
+    description: typeof body["description"] === "string" ? body["description"] : undefined,
+    sector: typeof body["sector"] === "string" ? body["sector"] : undefined,
+    objective: typeof body["objective"] === "string" ? body["objective"] : undefined,
+    tone: typeof body["tone"] === "string" ? body["tone"] : undefined,
+    colors: Array.isArray(body["colors"]) ? (body["colors"] as string[]) : undefined,
   });
 
   return NextResponse.json({
     ...company,
     colors: parseColors(company.colors),
   });
-}
-
-export async function GET() {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
-
-  const userId = (session.user as { id: string }).id;
-
-  const company = await prisma.company.findUnique({
-    where: { userId },
-    include: { socialAccounts: true },
-  });
-
-  if (!company) {
-    return NextResponse.json(null);
-  }
-
-  return NextResponse.json({
-    ...company,
-    colors: parseColors(company.colors),
-  });
-}
-
-function parseColors(colors: string | null): string[] {
-  if (!colors) return [];
-  try {
-    const parsed = JSON.parse(colors);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+});

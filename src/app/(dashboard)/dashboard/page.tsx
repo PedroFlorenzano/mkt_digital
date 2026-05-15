@@ -1,10 +1,27 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import {
+  PlusSquare,
+  Calendar,
+  FileText,
+  DollarSign,
+  Share2,
+  Settings,
+  TrendingUp,
+  Sparkles,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface Company {
   id: string;
@@ -17,183 +34,211 @@ interface Company {
   socialAccounts: { platform: string; connected: boolean; profileName: string | null }[];
 }
 
+const toneLabels: Record<string, string> = {
+  professional: "Profissional",
+  funny: "Engraçado",
+  informative: "Informativo",
+  inspirational: "Inspiracional",
+};
+
+const quickActions = [
+  { href: "/create-post", label: "Criar post com IA", icon: PlusSquare, color: "blue", description: "Gere texto e imagem" },
+  { href: "/schedule", label: "Agendar publicação", icon: Calendar, color: "purple", description: "Calendário de posts" },
+  { href: "/posts", label: "Ver meus posts", icon: FileText, color: "green", description: "Rascunhos e publicados" },
+  { href: "/costs", label: "Custos de IA", icon: DollarSign, color: "orange", description: "Tokens e gastos" },
+  { href: "/social", label: "Redes sociais", icon: Share2, color: "pink", description: "Conectar contas" },
+  { href: "/onboarding", label: "Configurações", icon: Settings, color: "gray", description: "Empresa e identidade" },
+];
+
+const colorMap: Record<string, string> = {
+  blue: "bg-blue-50 text-blue-600",
+  purple: "bg-purple-50 text-purple-600",
+  green: "bg-green-50 text-green-600",
+  orange: "bg-orange-50 text-orange-600",
+  pink: "bg-pink-50 text-pink-600",
+  gray: "bg-gray-100 text-gray-600",
+};
+
+const platforms = ["instagram", "facebook", "linkedin", "whatsapp"];
+
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [company, setCompany] = useState<Company | null>(null);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
+    if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
   useEffect(() => {
     if (session) {
       fetch("/api/company")
-        .then((res) => res.json())
+        .then((r) => r.json())
         .then((data) => {
-          if (!data || !data.id) {
-            router.push("/onboarding");
-          } else {
-            setCompany(data);
-          }
+          if (!data?.id) router.push("/onboarding");
+          else setCompany(data);
         });
     }
   }, [session, router]);
 
   if (status === "loading" || !company) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-pulse text-gray-500">Carregando...</div>
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+            <p className="text-sm text-gray-500">Carregando...</p>
+          </div>
+        </div>
+      </DashboardLayout>
     );
   }
 
-  const toneLabels: Record<string, string> = {
-    professional: "Profissional",
-    funny: "Engraçado",
-    informative: "Informativo",
-    inspirational: "Inspiracional",
-  };
+  const connectedCount = company.socialAccounts?.filter((a) => a.connected).length ?? 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold text-blue-600">MKT Digital</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">{session?.user?.name}</span>
-              <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Sair
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Olá, {session?.user?.name?.split(" ")[0]}!
-          </h2>
-          <p className="text-gray-500 mt-1">
-            Gerencie o marketing digital de {company.name}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl border border-gray-200">
-            <h3 className="text-sm font-medium text-gray-500">Empresa</h3>
-            <div className="flex items-center gap-4 mt-2">
-              {company.logoUrl && (
-                <div className="relative w-14 h-14 flex-shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
-                  <Image
-                    src={company.logoUrl}
-                    alt={`Logo ${company.name}`}
-                    fill
-                    sizes="56px"
-                    className="object-contain p-1"
-                    unoptimized
-                  />
-                </div>
-              )}
-              <div>
-                <p className="text-lg font-semibold text-gray-900">{company.name}</p>
-                <p className="text-sm text-gray-500">{company.sector}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl border border-gray-200">
-            <h3 className="text-sm font-medium text-gray-500">Tom</h3>
-            <p className="text-lg font-semibold text-gray-900 mt-1">
-              {toneLabels[company.tone] || company.tone}
+    <DashboardLayout>
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Olá, {session?.user?.name?.split(" ")[0]}! 👋
+            </h1>
+            <p className="text-gray-500 mt-1">
+              Gerencie o marketing digital de <span className="font-medium text-gray-700">{company.name}</span>
             </p>
           </div>
-
-          <div className="bg-white p-6 rounded-xl border border-gray-200">
-            <h3 className="text-sm font-medium text-gray-500">Cores da marca</h3>
-            <div className="flex gap-2 mt-2">
-              {(company.colors || []).map((color, i) => (
-                <div
-                  key={i}
-                  className="w-8 h-8 rounded-full border border-gray-200"
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-          </div>
+          <Button variant="gradient" asChild>
+            <Link href="/create-post">
+              <Sparkles className="h-4 w-4" />
+              Criar post com IA
+            </Link>
+          </Button>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Redes Sociais</h3>
-            <div className="space-y-3">
-              {["instagram", "facebook", "linkedin", "whatsapp"].map((platform) => {
-                const account = company.socialAccounts?.find(
-                  (a) => a.platform === platform
-                );
-                return (
-                  <div
-                    key={platform}
-                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
-                  >
-                    <span className="font-medium text-gray-700 capitalize">{platform}</span>
-                    {account?.connected ? (
-                      <span className="text-sm text-green-600 font-medium">Conectado</span>
+      {/* Stats row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {/* Company card */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-4">
+              {company.logoUrl ? (
+                <div className="relative h-12 w-12 shrink-0 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                  <Image src={company.logoUrl} alt="Logo" fill sizes="48px" className="object-contain p-1" unoptimized />
+                </div>
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white font-bold text-lg">
+                  {company.name.charAt(0)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Empresa</p>
+                <p className="font-semibold text-gray-900 truncate">{company.name}</p>
+                <p className="text-xs text-gray-500">{company.sector}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tone card */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50">
+                <TrendingUp className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Tom de voz</p>
+                <p className="font-semibold text-gray-900">{toneLabels[company.tone] ?? company.tone}</p>
+                <Badge variant="purple" className="mt-1 text-xs">Ativo</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Social card */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50">
+                <Share2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Redes conectadas</p>
+                <p className="font-semibold text-gray-900">{connectedCount} de {platforms.length}</p>
+                {connectedCount === 0 && (
+                  <Link href="/social" className="text-xs text-blue-600 hover:underline">Conectar agora</Link>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick actions */}
+      <div className="mb-8">
+        <h2 className="text-base font-semibold text-gray-900 mb-4">Ações rápidas</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="group flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md hover:border-gray-200 hover:-translate-y-0.5 transition-all duration-150"
+              >
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${colorMap[action.color]}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{action.label}</p>
+                  <p className="text-xs text-gray-400 truncate">{action.description}</p>
+                </div>
+                <ArrowRight className="ml-auto h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 shrink-0 transition-colors" />
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Social accounts status */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Status das redes sociais</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {platforms.map((platform) => {
+              const account = company.socialAccounts?.find((a) => a.platform === platform);
+              const isConnected = account?.connected;
+              return (
+                <div key={platform} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    {isConnected ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
                     ) : (
-                      <Link href="/social" className="text-sm text-blue-600 hover:underline font-medium">
-                        Conectar
-                      </Link>
+                      <Clock className="h-4 w-4 text-gray-300" />
+                    )}
+                    <span className="text-sm font-medium text-gray-700 capitalize">{platform}</span>
+                    {account?.profileName && (
+                      <span className="text-xs text-gray-400">@{account.profileName}</span>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                  {isConnected ? (
+                    <Badge variant="success">Conectado</Badge>
+                  ) : (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/social">Conectar</Link>
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-
-          <div className="bg-white p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações rápidas</h3>
-            <div className="space-y-3">
-              <Link
-                href="/create-post"
-                className="block w-full p-4 rounded-lg bg-blue-50 text-blue-700 font-medium hover:bg-blue-100 transition text-left"
-              >
-                Criar novo post com IA
-              </Link>
-              <Link
-                href="/schedule"
-                className="block w-full p-4 rounded-lg bg-purple-50 text-purple-700 font-medium hover:bg-purple-100 transition text-left"
-              >
-                Agendar publicações
-              </Link>
-              <Link
-                href="/posts"
-                className="block w-full p-4 rounded-lg bg-green-50 text-green-700 font-medium hover:bg-green-100 transition text-left"
-              >
-                Ver meus posts
-              </Link>
-              <Link
-                href="/costs"
-                className="block w-full p-4 rounded-lg bg-orange-50 text-orange-700 font-medium hover:bg-orange-100 transition text-left"
-              >
-                Ver custos de IA
-              </Link>
-              <Link
-                href="/onboarding"
-                className="block w-full p-4 rounded-lg bg-gray-50 text-gray-700 font-medium hover:bg-gray-100 transition text-left"
-              >
-                ⚙️ Editar empresa (cores, logo, tom)
-              </Link>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+        </CardContent>
+      </Card>
+    </DashboardLayout>
   );
 }

@@ -2,7 +2,13 @@
 
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { CheckCircle2, XCircle, Loader2, X, Info } from "lucide-react";
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface SocialAccount {
   id: string;
@@ -15,26 +21,30 @@ const PLATFORMS = [
   {
     id: "instagram",
     name: "Instagram",
-    color: "from-purple-500 to-pink-500",
-    description: "Posts no feed e stories",
+    gradient: "from-purple-500 via-pink-500 to-orange-400",
+    description: "Posts no feed, reels e stories",
+    hint: "Use o Meta Business Suite para gerar um Page Access Token.",
   },
   {
     id: "facebook",
     name: "Facebook",
-    color: "from-blue-600 to-blue-500",
-    description: "Posts na página",
+    gradient: "from-blue-700 to-blue-500",
+    description: "Posts na página e grupos",
+    hint: "Registre um app no Meta for Developers e obtenha o Page Access Token.",
   },
   {
     id: "linkedin",
     name: "LinkedIn",
-    color: "from-blue-700 to-blue-600",
-    description: "Posts profissionais",
+    gradient: "from-blue-800 to-blue-600",
+    description: "Posts profissionais e artigos",
+    hint: "Registre um app no LinkedIn Developers e obtenha o OAuth 2.0 token.",
   },
   {
     id: "whatsapp",
     name: "WhatsApp",
-    color: "from-green-500 to-green-400",
-    description: "Status e broadcast",
+    gradient: "from-green-600 to-green-400",
+    description: "Status e mensagens broadcast",
+    hint: "Configure via WhatsApp Business API no Meta for Developers.",
   },
 ];
 
@@ -42,233 +52,215 @@ export default function SocialPage() {
   const { data: session } = useSession();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [connecting, setConnecting] = useState<string | null>(null);
-  const [showTokenModal, setShowTokenModal] = useState<string | null>(null);
-  const [tokenInput, setTokenInput] = useState("");
-  const [profileIdInput, setProfileIdInput] = useState("");
-  const [profileNameInput, setProfileNameInput] = useState("");
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [modal, setModal] = useState<string | null>(null);
+  const [token, setToken] = useState("");
+  const [profileId, setProfileId] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (session) {
       fetch("/api/company")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.socialAccounts) {
-            setAccounts(data.socialAccounts);
-          }
-        });
+        .then((r) => r.json())
+        .then((data) => { if (data?.socialAccounts) setAccounts(data.socialAccounts); });
     }
   }, [session]);
 
-  async function connectAccount(platform: string) {
+  async function connect(platform: string) {
+    if (!token || !profileId) { setError("Preencha o token e o ID do perfil."); return; }
     setConnecting(platform);
+    setError("");
 
     const res = await fetch("/api/social/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        platform,
-        accessToken: tokenInput,
-        profileId: profileIdInput,
-        profileName: profileNameInput || platform,
-      }),
+      body: JSON.stringify({ platform, accessToken: token, profileId, profileName: profileName || platform }),
     });
 
     if (res.ok) {
       const account = await res.json();
-      setAccounts((prev) => {
-        const filtered = prev.filter((a) => a.platform !== platform);
-        return [...filtered, account];
-      });
+      setAccounts((prev) => [...prev.filter((a) => a.platform !== platform), account]);
+      closeModal();
+    } else {
+      setError("Erro ao conectar. Verifique o token e tente novamente.");
     }
-
     setConnecting(null);
-    setShowTokenModal(null);
-    setTokenInput("");
-    setProfileIdInput("");
-    setProfileNameInput("");
   }
 
-  async function disconnectAccount(platform: string) {
-    const res = await fetch(`/api/social/connect?platform=${platform}`, {
-      method: "DELETE",
-    });
-
-    if (res.ok) {
-      setAccounts((prev) =>
-        prev.map((a) =>
-          a.platform === platform ? { ...a, connected: false } : a
-        )
-      );
-    }
+  async function disconnect(platform: string) {
+    setDisconnecting(platform);
+    const res = await fetch(`/api/social/connect?platform=${platform}`, { method: "DELETE" });
+    if (res.ok) setAccounts((prev) => prev.map((a) => a.platform === platform ? { ...a, connected: false } : a));
+    setDisconnecting(null);
   }
 
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Carregando...</p>
-      </div>
-    );
+  function closeModal() {
+    setModal(null);
+    setToken("");
+    setProfileId("");
+    setProfileName("");
+    setError("");
   }
+
+  if (!session) return null;
+
+  const connectedCount = accounts.filter((a) => a.connected).length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <Link href="/dashboard" className="text-xl font-bold text-blue-600">
-              MKT Digital
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Redes Sociais</h2>
-        <p className="text-gray-500 mb-8">
-          Conecte suas contas para publicar diretamente pela plataforma.
+    <DashboardLayout>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Redes Sociais</h1>
+        <p className="text-gray-500 mt-1">
+          {connectedCount} de {PLATFORMS.length} redes conectadas
         </p>
+      </div>
 
-        <div className="space-y-4">
-          {PLATFORMS.map((platform) => {
-            const account = accounts.find(
-              (a) => a.platform === platform.id && a.connected
-            );
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {PLATFORMS.map((platform) => {
+          const account = accounts.find((a) => a.platform === platform.id && a.connected);
+          const isDisconnecting = disconnecting === platform.id;
 
-            return (
-              <div
-                key={platform.id}
-                className="bg-white rounded-xl border border-gray-200 p-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`w-12 h-12 rounded-xl bg-gradient-to-br ${platform.color} flex items-center justify-center`}
-                    >
-                      <span className="text-white font-bold text-lg">
-                        {platform.name[0]}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{platform.name}</h3>
-                      <p className="text-sm text-gray-500">{platform.description}</p>
-                      {account && (
-                        <p className="text-xs text-green-600 mt-1">
-                          Conectado como {account.profileName}
-                        </p>
-                      )}
-                    </div>
+          return (
+            <Card key={platform.id} className={account ? "border-green-200 bg-green-50/30" : ""}>
+              <CardContent className="p-5">
+                <div className="flex items-start gap-4">
+                  {/* Icon */}
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${platform.gradient} text-white font-bold text-lg shadow-sm`}>
+                    {platform.name[0]}
                   </div>
 
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-semibold text-gray-900">{platform.name}</h3>
+                      {account ? (
+                        <Badge variant="success" className="gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Conectado
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Desconectado</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500">{platform.description}</p>
+                    {account?.profileName && (
+                      <p className="text-xs text-green-600 mt-1 font-medium">@{account.profileName}</p>
+                    )}
+                  </div>
+
+                  {/* Action */}
                   {account ? (
-                    <button
-                      onClick={() => disconnectAccount(platform.id)}
-                      className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => disconnect(platform.id)}
+                      disabled={isDisconnecting}
+                      className="shrink-0 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
                     >
+                      {isDisconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
                       Desconectar
-                    </button>
+                    </Button>
                   ) : (
-                    <button
-                      onClick={() => setShowTokenModal(platform.id)}
-                      disabled={connecting === platform.id}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
+                    <Button
+                      variant="gradient"
+                      size="sm"
+                      onClick={() => setModal(platform.id)}
+                      className="shrink-0"
                     >
-                      {connecting === platform.id ? "Conectando..." : "Conectar"}
-                    </button>
+                      Conectar
+                    </Button>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Info box */}
+      <Card className="border-blue-100 bg-blue-50/50">
+        <CardContent className="p-5">
+          <div className="flex gap-3">
+            <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-blue-900 mb-2">Como obter os tokens de acesso?</p>
+              <div className="space-y-1.5">
+                {PLATFORMS.map((p) => (
+                  <p key={p.id} className="text-xs text-blue-700">
+                    <span className="font-medium">{p.name}:</span> {p.hint}
+                  </p>
+                ))}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        <div className="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
-          <h4 className="font-medium text-blue-900 mb-2">Como obter os tokens?</h4>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li>
-              <strong>Instagram/Facebook:</strong> Use o Meta Business Suite para gerar um Page Access Token.
-            </li>
-            <li>
-              <strong>LinkedIn:</strong> Registre um app no LinkedIn Developers e obtenha o OAuth token.
-            </li>
-            <li>
-              <strong>WhatsApp:</strong> Configure via WhatsApp Business API no Meta for Developers.
-            </li>
-          </ul>
-        </div>
-      </main>
+      {/* Connect modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeModal}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Conectar {PLATFORMS.find((p) => p.id === modal)?.name}
+              </h3>
+              <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
 
-      {/* Modal de conexão */}
-      {showTokenModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Conectar {PLATFORMS.find((p) => p.id === showTokenModal)?.name}
-            </h3>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Access Token
-                </label>
-                <input
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label>Access Token *</Label>
+                <Input
                   type="password"
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  placeholder="Cole seu token aqui"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder="Cole seu token de acesso aqui"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID do Perfil/Página
-                </label>
-                <input
-                  type="text"
-                  value={profileIdInput}
-                  onChange={(e) => setProfileIdInput(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  placeholder="ID do perfil ou página"
+              <div className="space-y-1.5">
+                <Label>ID do Perfil / Página *</Label>
+                <Input
+                  value={profileId}
+                  onChange={(e) => setProfileId(e.target.value)}
+                  placeholder="Ex: 123456789"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome do perfil (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={profileNameInput}
-                  onChange={(e) => setProfileNameInput(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              <div className="space-y-1.5">
+                <Label>Nome do perfil (opcional)</Label>
+                <Input
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
                   placeholder="@meuperfil"
                 />
               </div>
-            </div>
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowTokenModal(null);
-                  setTokenInput("");
-                  setProfileIdInput("");
-                  setProfileNameInput("");
-                }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => connectAccount(showTokenModal)}
-                disabled={!tokenInput || !profileIdInput}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
-              >
-                Conectar
-              </button>
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
+                  <XCircle className="h-4 w-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={closeModal}>Cancelar</Button>
+                <Button
+                  variant="gradient"
+                  className="flex-1"
+                  onClick={() => connect(modal)}
+                  disabled={!token || !profileId || connecting === modal}
+                >
+                  {connecting === modal ? <><Loader2 className="h-4 w-4 animate-spin" />Conectando...</> : "Conectar"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </DashboardLayout>
   );
 }

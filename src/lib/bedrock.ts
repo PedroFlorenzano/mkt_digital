@@ -17,14 +17,14 @@ const IMAGE_REGION = process.env.AWS_BEDROCK_IMAGE_REGION || "us-west-2";
 
 const TEXT_MODEL_PRIMARY = "us.anthropic.claude-sonnet-4-6";
 const TEXT_MODEL_FALLBACK = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
-const IMAGE_MODEL = "stability.stable-image-core-v1:1";
+const IMAGE_MODEL = "stability.stable-image-ultra-v1:1";
 
 const TEXT_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {
   [TEXT_MODEL_PRIMARY]: { inputPer1k: 0.003, outputPer1k: 0.015 },
   [TEXT_MODEL_FALLBACK]: { inputPer1k: 0.0008, outputPer1k: 0.004 },
 };
 
-const IMAGE_PRICING = { perImage: 0.04 };
+const IMAGE_PRICING = { perImage: 0.08 };
 
 const awsDir = join(homedir(), ".aws");
 
@@ -169,49 +169,56 @@ export async function generateImageWithBedrock(
   const client = getImageClient();
   const images: string[] = [];
 
+  // Variações com estilos fotográficos profissionais — mantém o tema do prompt
   const variations = [
-    `${prompt} Minimalist composition, soft lighting, clean design. No text, no words, no letters, no typography of any kind.`,
-    `${prompt} Vibrant colors, geometric shapes, bold and eye-catching. No text, no words, no letters, no typography of any kind.`,
-    `${prompt} Elegant and sophisticated, subtle gradients, premium feel. No text, no words, no letters, no typography of any kind.`,
+    `${prompt} Professional photography, sharp focus, dramatic lighting, photorealistic, high detail, commercial quality. Leave the bottom third of the image slightly darker or with space suitable for text overlay. No text, no words, no letters, no typography of any kind.`,
+    `${prompt} Cinematic composition, golden hour lighting, vivid colors, ultra-realistic, 4K quality, professional product shot. Leave the bottom third of the image slightly darker or with space suitable for text overlay. No text, no words, no letters, no typography of any kind.`,
+    `${prompt} Clean studio photography, bright natural light, modern aesthetic, high resolution, editorial quality. Leave the bottom third of the image slightly darker or with space suitable for text overlay. No text, no words, no letters, no typography of any kind.`,
   ];
 
-  // Gera as 3 variações em paralelo
-  const settled = await Promise.allSettled(
-    Array.from({ length: count }, async (_, i) => {
-      const body = JSON.stringify({
-        prompt: variations[i] || prompt,
-        negative_prompt:
-          "text, words, letters, numbers, typography, watermark, caption, label, " +
-          "title, subtitle, font, writing, inscription, sign, banner, overlay",
-        output_format: "png",
-        aspect_ratio: "1:1",
-      });
+  // Gera sequencialmente para evitar throttling e garantir 3 imagens
+  for (let i = 0; i < count; i++) {
+    let attempts = 0;
+    const maxAttempts = 2;
 
-      const command = new InvokeModelCommand({
-        modelId: IMAGE_MODEL,
-        contentType: "application/json",
-        accept: "application/json",
-        body: Buffer.from(body),
-      });
+    while (attempts < maxAttempts) {
+      try {
+        const body = JSON.stringify({
+          prompt: variations[i] || prompt,
+          negative_prompt:
+            "text, words, letters, numbers, typography, watermark, caption, label, " +
+            "title, subtitle, font, writing, inscription, sign, banner, overlay, " +
+            "blurry, low quality, distorted, deformed",
+          output_format: "png",
+          aspect_ratio: "1:1",
+        });
 
-      const response = await client.send(command);
-      const result = JSON.parse(new TextDecoder().decode(response.body));
+        const command = new InvokeModelCommand({
+          modelId: IMAGE_MODEL,
+          contentType: "application/json",
+          accept: "application/json",
+          body: Buffer.from(body),
+        });
 
-      if (result.images?.length > 0) {
-        return `data:image/png;base64,${result.images[0]}`;
+        const response = await client.send(command);
+        const result = JSON.parse(new TextDecoder().decode(response.body));
+
+        if (result.images?.length > 0) {
+          images.push(`data:image/png;base64,${result.images[0]}`);
+          break; // sucesso — próxima variação
+        }
+        attempts++;
+      } catch (err) {
+        attempts++;
+        console.error(
+          `[bedrock/image] Variação ${i + 1} tentativa ${attempts} falhou:`,
+          err instanceof Error ? err.message : err
+        );
+        if (attempts < maxAttempts) {
+          // Aguarda 1s antes de tentar novamente
+          await new Promise((r) => setTimeout(r, 1000));
+        }
       }
-      return null;
-    })
-  );
-
-  for (const r of settled) {
-    if (r.status === "fulfilled" && r.value) {
-      images.push(r.value);
-    } else if (r.status === "rejected") {
-      console.error(
-        `[bedrock/image] Variação falhou:`,
-        r.reason instanceof Error ? r.reason.message : r.reason
-      );
     }
   }
 

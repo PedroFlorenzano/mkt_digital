@@ -4,8 +4,12 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
+
+// ─────────────────────────────────────────────
+// Auth models (NextAuth)
+// ─────────────────────────────────────────────
 
 model User {
   id            String    @id @default(cuid())
@@ -17,9 +21,10 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  company  Company?
+  accounts      Account[]
+  sessions      Session[]
+  company       Company?
+  subscription  Subscription?
 }
 
 model Account {
@@ -39,6 +44,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -48,6 +54,8 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -57,6 +65,10 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+// ─────────────────────────────────────────────
+// Business models
+// ─────────────────────────────────────────────
 
 model Company {
   id          String   @id @default(cuid())
@@ -90,6 +102,7 @@ model SocialAccount {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, platform])
+  @@index([companyId])
 }
 
 model Post {
@@ -97,7 +110,6 @@ model Post {
   companyId   String
   content     String?
   imageUrl    String?
-  videoUrl    String?
   platform    String
   status      String    @default("draft")
   scheduledAt DateTime?
@@ -106,6 +118,11 @@ model Post {
 
   company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   variants PostVariant[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([companyId, status])
 }
 
 model PostVariant {
@@ -117,19 +134,61 @@ model PostVariant {
   selected Boolean @default(false)
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
 }
 
 model CostLog {
-  id            String   @id @default(cuid())
-  companyId     String
-  type          String
-  model         String
-  inputTokens   Int      @default(0)
-  outputTokens  Int      @default(0)
-  images        Int      @default(0)
-  costUsd       Float
-  metadata      String?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  companyId    String
+  type         String
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  images       Int      @default(0)
+  costUsd      Float
+  metadata     String?
+  createdAt    DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([createdAt])
+  @@index([companyId, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// Billing models (PCI-DSS ready)
+// ─────────────────────────────────────────────
+
+model Plan {
+  id                    String   @id @default(cuid())
+  name                  String
+  priceMonthlyUsd       Float
+  priceYearlyUsd        Float
+  aiImageCreditsPerMonth Int
+  aiTextCreditsPerMonth  Int
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  planId                 String
+  status                 String   @default("trialing") // active | canceled | past_due | trialing
+  currentPeriodStart     DateTime
+  currentPeriodEnd       DateTime
+  paymentProvider        String   @default("stripe")
+  providerSubscriptionId String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([status])
 }

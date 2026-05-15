@@ -3,15 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateImageWithBedrock } from "@/lib/bedrock";
+import { composeMarketingPost, applyLayoutTemplate, bufferToDataUrl } from "@/lib/image-compose";
+import { translateToImagePrompt, buildFallbackPrompt } from "@/lib/services/promptTranslator";
 
-const platformAspectRatio: Record<string, string> = {
-  instagram: "1:1",
-  facebook: "16:9",
-  linkedin: "16:9",
-  whatsapp: "1:1",
-};
-
-const SUPPORTED_PLATFORMS = Object.keys(platformAspectRatio);
+const SUPPORTED_PLATFORMS = ["instagram", "facebook", "linkedin", "whatsapp"];
 
 function sanitizeColors(raw: unknown): string[] {
   if (typeof raw === "string") {
@@ -20,9 +15,14 @@ function sanitizeColors(raw: unknown): string[] {
       if (Array.isArray(parsed)) return parsed.filter((c): c is string => typeof c === "string").slice(0, 5);
     } catch { /* continue */ }
   }
-  if (!Array.isArray(raw)) return ["#3B82F6", "#1E40AF"];
+  if (!Array.isArray(raw)) return ["#1a1a2e", "#3B82F6"];
   const cleaned = raw.filter((c): c is string => typeof c === "string" && c.length > 0);
-  return cleaned.length > 0 ? cleaned.slice(0, 5) : ["#3B82F6", "#1E40AF"];
+  return cleaned.length > 0 ? cleaned.slice(0, 5) : ["#1a1a2e", "#3B82F6"];
+}
+
+function dataUrlToBuffer(dataUrl: string): Buffer {
+  const comma = dataUrl.indexOf(",");
+  return Buffer.from(dataUrl.slice(comma + 1), "base64");
 }
 
 export async function POST(request: Request) {
@@ -38,7 +38,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Empresa não configurada" }, { status: 400 });
   }
 
-  let body: { platform?: unknown; idea?: unknown; style?: unknown; referenceContext?: unknown; trendingContext?: unknown };
+  let body: {
+    platform?: unknown;
+    idea?: unknown;
+    style?: unknown;
+    referenceContext?: unknown;
+    trendingContext?: unknown;
+    addTextOverlay?: unknown;
+    overlayHeadline?: unknown;
+    overlayBody?: unknown;
+    layoutTemplate?: unknown;
+  };
+
   try {
     body = await request.json();
   } catch {
@@ -46,56 +57,98 @@ export async function POST(request: Request) {
   }
 
   const platform = typeof body.platform === "string" ? body.platform : "";
-  const idea = typeof body.idea === "string" ? body.idea.trim() : "";
-  const style = typeof body.style === "string" ? body.style.trim() : "";
-  const referenceContext = typeof body.referenceContext === "string" ? body.referenceContext.trim() : "";
-  const trendingContext = typeof body.trendingContext === "string" ? body.trendingContext.trim() : "";
+  const idea = typeof body.idea === "string" ? body.idea.trim().slice(0, 2000) : "";
+  const style = typeof body.style === "string" ? body.style.trim().slice(0, 200) : "";
+  const trendingContext = typeof body.trendingContext === "string" ? body.trendingContext.trim().slice(0, 1000) : "";
 
-  if (!platform) {
-    return NextResponse.json({ error: "Plataforma é obrigatória" }, { status: 400 });
-  }
-  if (!SUPPORTED_PLATFORMS.includes(platform)) {
+  const addTextOverlay = body.addTextOverlay === true;
+  const overlayHeadline = typeof body.overlayHeadline === "string" ? body.overlayHeadline.trim().slice(0, 200) : "";
+  const overlayBody = typeof body.overlayBody === "string" ? body.overlayBody.trim().slice(0, 300) : "";
+  const layoutTemplate = typeof body.layoutTemplate === "string" ? body.layoutTemplate : "gradient-bottom";
+
+  if (!platform || !SUPPORTED_PLATFORMS.includes(platform)) {
     return NextResponse.json(
-      { error: `Plataforma não suportada. Use: ${SUPPORTED_PLATFORMS.join(", ")}` },
+      { error: `Plataforma inválida. Use: ${SUPPORTED_PLATFORMS.join(", ")}` },
       { status: 400 },
     );
   }
 
   const colors = sanitizeColors(company.colors);
 
-  const prompt = [
-    `Professional social media post image for ${company.name}, a ${company.sector || "business"} company.`,
-    idea || company.description || "",
-    `Brand color palette: ${colors.join(", ")}.`,
-    `Target: ${platform} post.`,
-    style ? `Style: ${style}.` : "Style: modern, clean, professional.",
-    referenceContext ? `Visual reference context: ${referenceContext}.` : "",
-    trendingContext ? `Additional context and trending topic to incorporate: ${trendingContext}.` : "",
-    "High quality photorealistic image. Absolutely NO text, NO words, NO letters, NO numbers, NO captions, NO watermarks, NO overlays of any kind. Pure visual imagery only.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  // Usa Claude para traduzir a ideia do usuário em um prompt técnico em inglês
+  const ideaForTranslation = [idea, trendingContext].filter(Boolean).join(". ");
+  const companyCtx = {
+    name: company.name,
+    sector: company.sector,
+    description: company.description,
+    objective: company.objective,
+    tone: company.tone,
+    colors,
+  };
+
+  let imagePrompt: string;
+  if (ideaForTranslation) {
+    const translated = await translateToImagePrompt(ideaForTranslation, companyCtx);
+    imagePrompt = translated ?? buildFallbackPrompt(ideaForTranslation, companyCtx);
+  } else {
+    imagePrompt = buildFallbackPrompt(
+      company.description || `${company.sector || "business"} professional scene`,
+      companyCtx,
+    );
+  }
+
+  // Adiciona estilo visual se fornecido
+  if (style) {
+    imagePrompt = `${imagePrompt} Visual style: ${style}.`;
+  }
 
   try {
-    const result = await generateImageWithBedrock(company.id, prompt, 3);
+    const result = await generateImageWithBedrock(company.id, imagePrompt, 3);
 
     if (result.images.length === 0) {
-      return NextResponse.json(
-        { error: "Nenhuma imagem foi gerada" },
-        { status: 502 },
+      return NextResponse.json({ error: "Nenhuma imagem foi gerada" }, { status: 502 });
+    }
+
+    let finalImages = result.images;
+
+    if (addTextOverlay && (overlayHeadline || overlayBody)) {
+      finalImages = await Promise.all(
+        result.images.map(async (dataUrl) => {
+          try {
+            const buf = dataUrlToBuffer(dataUrl);
+            let composed: Buffer;
+
+            if (layoutTemplate === "text-left" || layoutTemplate === "split-dark") {
+              composed = await applyLayoutTemplate(buf, {
+                template: layoutTemplate as "text-left" | "split-dark",
+                headline: overlayHeadline || undefined,
+                body: overlayBody || undefined,
+                companyName: company.name,
+                brandColors: colors,
+              });
+            } else {
+              // Layout padrão: gradiente no rodapé com texto integrado
+              composed = await composeMarketingPost(buf, {
+                headline: overlayHeadline || "",
+                body: overlayBody || undefined,
+                companyName: company.name,
+                brandColors: colors,
+              });
+            }
+
+            return bufferToDataUrl(composed, "image/webp");
+          } catch (err) {
+            console.error("[generate/image] overlay failed:", err instanceof Error ? err.message : err);
+            return dataUrl;
+          }
+        })
       );
     }
 
-    return NextResponse.json({
-      images: result.images,
-      usage: result.usage,
-    });
+    return NextResponse.json({ images: finalImages, usage: result.usage });
   } catch (err) {
-    console.error("[generate/image] Bedrock error:", err);
+    console.error("[generate/image] error:", err instanceof Error ? err.message : err);
     const message = err instanceof Error ? err.message : "Erro desconhecido";
-    return NextResponse.json(
-      { error: `Erro ao gerar imagens: ${message}` },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: `Erro ao gerar imagens: ${message}` }, { status: 502 });
   }
 }
