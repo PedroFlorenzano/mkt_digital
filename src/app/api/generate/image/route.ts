@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { generateImageWithBedrock } from "@/lib/bedrock";
-import { composeMarketingPost, applyLayoutTemplate, bufferToDataUrl } from "@/lib/image-compose";
-import { translateToImagePrompt, buildFallbackPrompt } from "@/lib/services/promptTranslator";
+import { authOptions } from "@server/lib/auth";
+import { prisma } from "@server/lib/prisma";
+import { generateImageWithBedrock } from "@server/lib/bedrock";
+import { composeMarketingPost, applyLayoutTemplate, bufferToDataUrl } from "@server/lib/image-compose";
+import { translateToImagePrompt, buildFallbackPrompt } from "@server/services/promptTranslator";
 
 const SUPPORTED_PLATFORMS = ["instagram", "facebook", "linkedin", "whatsapp"];
 

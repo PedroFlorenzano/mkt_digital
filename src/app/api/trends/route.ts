@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@server/lib/auth";
 import * as cheerio from "cheerio";
 
 interface TrendItem {

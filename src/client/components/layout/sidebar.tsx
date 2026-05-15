@@ -15,9 +15,9 @@ import {
   Sparkles,
   ChevronRight,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { cn } from "@server/lib/utils";
+import { Button } from "@client/components/ui/button";
+import { Separator } from "@client/components/ui/separator";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },

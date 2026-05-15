@@ -18,10 +18,10 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { DashboardLayout } from "@client/components/layout/dashboard-layout";
+import { Button } from "@client/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@client/components/ui/card";
+import { Badge } from "@client/components/ui/badge";
 
 interface Company {
   id: string;

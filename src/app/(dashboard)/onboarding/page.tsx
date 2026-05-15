@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { Sparkles, Loader2, Upload, X, Check, Building2, MessageSquare, Palette } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { Button } from "@client/components/ui/button";
+import { Input } from "@client/components/ui/input";
+import { Label } from "@client/components/ui/label";
+import { Card, CardContent } from "@client/components/ui/card";
+import { cn } from "@server/lib/utils";
 
 const TONES = [
   { value: "professional", label: "Profissional", description: "Linguagem corporativa e formal", emoji: "💼" },

@@ -3,12 +3,12 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, X, Info } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { DashboardLayout } from "@client/components/layout/dashboard-layout";
+import { Button } from "@client/components/ui/button";
+import { Badge } from "@client/components/ui/badge";
+import { Card, CardContent } from "@client/components/ui/card";
+import { Input } from "@client/components/ui/input";
+import { Label } from "@client/components/ui/label";
 
 interface SocialAccount {
   id: string;

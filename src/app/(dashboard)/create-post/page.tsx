@@ -8,13 +8,13 @@ import {
   Sparkles, Loader2, TrendingUp, Upload, X, Check,
   Share2, Type, ImageIcon, Save, Calendar, AlertCircle,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { DashboardLayout } from "@client/components/layout/dashboard-layout";
+import { Button } from "@client/components/ui/button";
+import { Badge } from "@client/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@client/components/ui/card";
+import { Input } from "@client/components/ui/input";
+import { Label } from "@client/components/ui/label";
+import { cn } from "@server/lib/utils";
 
 interface TextOption { title: string; content: string; }
 interface TrendItem { title: string; source: string; }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { companyService } from "@/lib/services/company.service";
-import { withErrorHandler } from "@/lib/api-handler";
-import { UnauthorizedError } from "@/lib/errors";
+import { authOptions } from "@server/lib/auth";
+import { companyService } from "@server/services/company.service";
+import { withErrorHandler } from "@server/lib/api-handler";
+import { UnauthorizedError } from "@server/lib/errors";
 
 function parseColors(colors: unknown): string[] {
   if (typeof colors === "string") {

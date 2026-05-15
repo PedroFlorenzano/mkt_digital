@@ -4,11 +4,11 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DollarSign, MessageSquare, Image, Zap, TrendingUp, PlusSquare } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { DashboardLayout } from "@client/components/layout/dashboard-layout";
+import { Button } from "@client/components/ui/button";
+import { Badge } from "@client/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@client/components/ui/card";
+import { cn } from "@server/lib/utils";
 
 interface CostSummary {
   totalCost: number;

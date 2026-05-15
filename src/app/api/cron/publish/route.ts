@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@server/lib/prisma";
 import {
   publishToInstagram,
   publishToFacebook,
   publishToLinkedin,
   publishToWhatsapp,
-} from "@/lib/social";
+} from "@server/lib/social";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
