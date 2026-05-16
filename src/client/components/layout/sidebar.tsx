@@ -11,6 +11,7 @@ import {
   Share2,
   DollarSign,
   TrendingUp,
+  Video,
   Settings,
   LogOut,
   ChevronRight,
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/social", label: "Redes Sociais", icon: Share2 },
   { href: "/costs", label: "Custos de IA", icon: DollarSign },
   { href: "/paid-traffic", label: "Tráfego Pago", icon: TrendingUp },
+  { href: "/video", label: "Vídeos com IA", icon: Video },
 ];
 
 export function Sidebar() {

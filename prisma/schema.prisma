@@ -91,6 +91,8 @@ model Company {
   adCampaigns       AdCampaign[]
   automationRules   AutomationRule[]
   campaignAuditLogs CampaignAuditLog[]
+  videoJobs         VideoJob[]
+  videoCredits      VideoCredit[]
 }
 
 model SocialAccount {
@@ -145,6 +147,7 @@ model PostVariant {
 model CostLog {
   id           String   @id @default(cuid())
   companyId    String
+  videoJobId   String?
   type         String
   model        String
   inputTokens  Int      @default(0)
@@ -154,11 +157,13 @@ model CostLog {
   metadata     String?
   createdAt    DateTime @default(now())
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  videoJob VideoJob? @relation(fields: [videoJobId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
   @@index([createdAt])
   @@index([companyId, createdAt])
+  @@index([videoJobId])
 }
 
 // ─────────────────────────────────────────────
@@ -362,4 +367,121 @@ model CampaignAuditLog {
   @@index([companyId, actionType])
   @@index([companyId, createdAt])
   @@index([campaignId])
+}
+
+// ─────────────────────────────────────────────
+// Módulo: Geração de Vídeos Curtos com IA
+// ─────────────────────────────────────────────
+
+/// Job de geração de vídeo — representa uma execução completa do pipeline.
+/// Cada etapa do pipeline atualiza o campo `status` e `progress`.
+model VideoJob {
+  id              String    @id @default(cuid())
+  companyId       String
+
+  /// Status do pipeline: queued | extracting_frames | frames_extracted |
+  ///   generating_script | script_generated | transforming_frames |
+  ///   frames_transformed | generating_narration | narration_generated |
+  ///   assembling | completed | error
+  status          String    @default("queued")
+
+  /// Percentual de progresso geral: 0-100
+  progress        Int       @default(0)
+
+  /// Mensagem de erro descritiva (preenchida quando status = 'error')
+  errorMessage    String?
+
+  // ── Configurações do job ──────────────────────────────────────────────
+  /// Formato: 'instagram_reels' | 'tiktok' | 'youtube_shorts'
+  platform        String
+
+  /// Duração alvo em segundos: 15 | 30 | 60
+  targetDuration  Int
+
+  /// Estilo visual: 'realistic' | 'cinematic' | 'minimalist'
+  visualStyle     String
+
+  /// Chamada para ação personalizada (ex.: "Agende agora pelo WhatsApp")
+  ctaText         String?
+
+  /// Tom de voz herdado da empresa (pode ser sobrescrito para este job)
+  tone            String
+
+  /// Voz Polly: 'Camila' | 'Ricardo'
+  narratorVoice   String    @default("Camila")
+
+  /// Descrição de contexto fornecida pelo usuário (10-500 chars)
+  contextDescription String
+
+  // ── Artefatos S3 ─────────────────────────────────────────────────────
+  /// Caminho S3 do vídeo bruto: videos/{jobId}/raw/original.{ext}
+  rawVideoS3Key   String?
+
+  /// Caminho S3 do brief JSON: videos/{jobId}/brief.json
+  briefS3Key      String?
+
+  /// Caminho S3 do vídeo final: videos/{jobId}/output/final.mp4
+  outputS3Key     String?
+
+  // ── Metadados do resultado ────────────────────────────────────────────
+  /// Número de frames extraídos do vídeo bruto
+  framesExtracted Int?
+
+  /// Número de frames efetivamente transformados pelo Stable Diffusion
+  framesTransformed Int?
+
+  /// Duração real do vídeo final em segundos
+  outputDurationSeconds Int?
+
+  /// Tamanho do arquivo de saída em bytes
+  outputFileSizeBytes   BigInt?
+
+  /// Resolução do vídeo final: '1080x1920' ou '1920x1080'
+  outputResolution  String?
+
+  /// JSON array com duração de cada etapa em ms: { step, durationMs }
+  stepDurationsJson String?
+
+  /// Custo total estimado do job em USD (soma de todos os CostLog)
+  estimatedCostUsd  Float?
+
+  /// Flag indicando se o crédito foi deduzido
+  creditDeducted    Boolean   @default(false)
+
+  createdAt         DateTime  @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  updatedAt         DateTime  @updatedAt
+
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costLogs    CostLog[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Saldo mensal de créditos de vídeo por empresa.
+/// Um registro por empresa por período de cobrança.
+model VideoCredit {
+  id              String   @id @default(cuid())
+  companyId       String
+
+  /// Período de cobrança: primeiro dia do mês, ex.: 2025-06-01T00:00:00Z
+  billingPeriodStart DateTime
+
+  /// Créditos totais disponíveis no plano para este período
+  totalCredits    Int
+
+  /// Créditos já consumidos no período
+  usedCredits     Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, billingPeriodStart])
+  @@index([companyId])
 }

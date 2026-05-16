@@ -294,7 +294,7 @@ As tarefas seguem ordem de dependência garantida: fundação sem APIs externas 
     - `CRON_SECRET=` com comentário: `# Secret para autenticar o cron job /api/cron/paid-traffic-monitor. Gerar com: openssl rand -hex 32`
   - _Requisitos: 2.4_
 
-- [-] 34. Checkpoint final — garantir que todos os testes passam
+- [x] 34. Checkpoint final — garantir que todos os testes passam
   - Executar a suite completa de testes (`npx jest --runInBand`)
   - Verificar que todas as rotas de `/api/paid-traffic/*` retornam HTTP 403 para usuários com plano inelegível
   - Confirmar que nenhum valor de credencial (`token`, `secret`, `key`) aparece nos logs de desenvolvimento
