@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useContext, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
@@ -19,7 +19,7 @@ import { Input } from "@client/components/ui/input";
 import { Label } from "@client/components/ui/label";
 import { Card, CardContent } from "@client/components/ui/card";
 import { cn } from "@server/lib/utils";
-import { useActiveCompany } from "@client/components/company/CompanyContext";
+import { CompanyContext } from "@client/components/company/CompanyContext";
 
 const TONES = [
   { value: "professional", label: "Profissional", description: "Linguagem corporativa e formal", emoji: "💼" },
@@ -51,7 +51,11 @@ function OnboardingForm() {
   const isCreateMode = searchParams.get("mode") === "create";
 
   const { data: session, update: updateSession } = useSession();
-  const { company: activeCompany, refresh } = useActiveCompany();
+  // Use context directly (not the throwing hook) — onboarding may render
+  // outside DashboardLayout (no CompanyProvider) when adding a new client.
+  const companyCtx = useContext(CompanyContext);
+  const activeCompany = companyCtx?.company ?? null;
+  const refresh = companyCtx?.refresh ?? (async () => {});
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
