@@ -30,6 +30,26 @@ import { logger } from "@server/lib/logger";
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 // ---------------------------------------------------------------------------
+// Local key helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true if the key is a local filesystem path (dev mode).
+ * Local keys have the format: "local:uploads/videos/filename.mp4"
+ */
+function isLocalKey(key: string): boolean {
+  return key.startsWith("local:");
+}
+
+/**
+ * Resolves a local key to an absolute file path.
+ */
+function resolveLocalKey(key: string): string {
+  const relativePath = key.replace(/^local:/, "");
+  return path.join(process.cwd(), "public", relativePath);
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -74,15 +94,35 @@ export async function extractFrames(
   const prefix = buildJobS3Prefix(jobId);
 
   try {
-    // 1. Download raw video
-    logger.info("[frame-extractor] Downloading raw video", { jobId, rawS3Key });
-    const rawBuffer = await downloadVideoArtifact(rawS3Key);
-    fs.writeFileSync(rawVideoPath, rawBuffer);
+    // 1. Download raw video (or copy from local path)
+    logger.info("[frame-extractor] Getting raw video", { jobId, rawS3Key });
 
-    // 2. Calculate extraction parameters
-    const { interval, maxFrames } = calculateExtractionParams(durationSeconds);
+    if (isLocalKey(rawS3Key)) {
+      const localPath = resolveLocalKey(rawS3Key);
+      if (!fs.existsSync(localPath)) {
+        throw new Error(`vídeo inválido ou corrompido — arquivo local não encontrado: ${localPath}`);
+      }
+      fs.copyFileSync(localPath, rawVideoPath);
+    } else {
+      const rawBuffer = await downloadVideoArtifact(rawS3Key);
+      fs.writeFileSync(rawVideoPath, rawBuffer);
+    }
 
-    // 3. Extract frames with ffmpeg
+    // 2. Get actual video duration via ffprobe
+    const actualDuration = await new Promise<number>((resolve) => {
+      ffmpeg.ffprobe(rawVideoPath, (err, metadata) => {
+        if (err || !metadata?.format?.duration) {
+          resolve(durationSeconds); // fallback to estimate
+        } else {
+          resolve(metadata.format.duration);
+        }
+      });
+    });
+
+    // 3. Calculate extraction parameters
+    const { interval, maxFrames } = calculateExtractionParams(actualDuration);
+
+    // 4. Extract frames with ffmpeg
     await new Promise<void>((resolve, reject) => {
       ffmpeg(rawVideoPath)
         .outputOptions([
@@ -96,7 +136,7 @@ export async function extractFrames(
         .run();
     });
 
-    // 4. Collect extracted frames
+    // 5. Collect extracted frames
     const frameFiles = fs
       .readdirSync(framesDir)
       .filter((f) => f.endsWith(".jpg"))
@@ -112,7 +152,7 @@ export async function extractFrames(
       interval,
     });
 
-    // 5. Upload frames to S3 and build histogram data (simplified — use uniform histograms
+    // 6. Upload frames to S3
     //    since we don't have OpenCV; diversity is approximated by frame index spread)
     const s3Keys: string[] = [];
     const histograms: FrameHistogram[] = [];
@@ -123,7 +163,12 @@ export async function extractFrames(
       const frameBuffer = fs.readFileSync(framePath);
       const s3Key = `${prefix}frames/frame_${String(i).padStart(4, "0")}.jpg`;
 
-      await uploadVideoArtifact(s3Key, frameBuffer, "image/jpeg");
+      await uploadVideoArtifact(s3Key, frameBuffer, "image/jpeg").catch(() => {
+        // In local dev without S3, store frames locally
+        const localFrameDir = path.join(process.cwd(), "public", "uploads", "frames", jobId);
+        fs.mkdirSync(localFrameDir, { recursive: true });
+        fs.writeFileSync(path.join(localFrameDir, `frame_${String(i).padStart(4, "0")}.jpg`), frameBuffer);
+      });
       s3Keys.push(s3Key);
 
       // Build a simple pseudo-histogram based on file size variation
@@ -138,7 +183,7 @@ export async function extractFrames(
       histograms.push({ frameIndex: i, s3Key, histogram });
     }
 
-    // 6. Select representative subset
+    // 7. Select representative subset
     const MAX_REPRESENTATIVE = 10;
     const selected = selectRepresentativeFrames(histograms, MAX_REPRESENTATIVE);
     const selectedFrames = selected.map((f) => f.frameIndex);
