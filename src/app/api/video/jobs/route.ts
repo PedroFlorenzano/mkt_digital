@@ -92,14 +92,17 @@ export const POST = withErrorHandler(async (request: Request) => {
     contextDescription: String(contextDescription),
   });
 
-  // Fire-and-forget: trigger worker
-  void fetch(
-    `${process.env["NEXTAUTH_URL"] ?? "http://localhost:3030"}/api/cron/video-worker`,
-    {
-      headers: { Authorization: `Bearer ${process.env["CRON_SECRET"] ?? ""}` },
-      signal: AbortSignal.timeout?.(500) ?? undefined,
-    },
-  ).catch(() => {}); // don't wait or fail on this
+  // Run pipeline asynchronously in the same Node.js process via setImmediate.
+  // This avoids the fragile fire-and-forget HTTP call to the cron worker
+  // (which breaks when NEXTAUTH_URL doesn't match the actual dev port).
+  setImmediate(() => {
+    // Import dynamically to avoid circular import issues at module load time
+    import("@server/services/video-job.service").then(({ runPipeline }) => {
+      runPipeline(job.id).catch((err: unknown) => {
+        console.error("[video-jobs] Pipeline failed for job", job.id, err);
+      });
+    }).catch(() => {});
+  });
 
   return NextResponse.json(
     { jobId: job.id, status: job.status, creditsRemaining: creditBalance - 1 },
