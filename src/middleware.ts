@@ -20,7 +20,8 @@ function isPublicRoute(pathname: string): boolean {
 function isApiRouteNoCompanyRequired(pathname: string): boolean {
   return (
     pathname === "/api/companies" ||
-    pathname.startsWith("/api/companies/select")
+    pathname.startsWith("/api/companies/select") ||
+    pathname.startsWith("/api/companies/")  // GET/PATCH/DELETE individual company
   );
 }
 
@@ -87,16 +88,17 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── 6. Authenticated but no active company ───────────────────────────────────
-  //    Dashboard routes always require an active company, except /onboarding
-  //    (used to create the first/new company).
-  //    API routes require it too, except the company-list and company-select
-  //    endpoints that are used to populate and submit the selector itself.
+  //    Dashboard routes always require an active company, EXCEPT routes listed
+  //    in isDashboardRouteNoCompanyRequired (e.g. /onboarding in create mode).
+  //    API routes also require it, except the company-list and company-select
+  //    endpoints used by the selector itself.
   const noCompanyRequired =
     isApiRouteNoCompanyRequired(pathname) ||
     isDashboardRouteNoCompanyRequired(pathname);
 
   if (
-    (isDashboardRoute || (isApiRoute && !noCompanyRequired)) &&
+    !noCompanyRequired &&
+    (isDashboardRoute || isApiRoute) &&
     !token.activeCompanyId
   ) {
     if (isApiRoute) {
