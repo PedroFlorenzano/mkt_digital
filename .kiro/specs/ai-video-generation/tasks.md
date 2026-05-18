@@ -22,7 +22,7 @@ npm install --save-dev @types/fluent-ffmpeg
     - Executar `npx prisma migrate dev --name add-video-module` para aplicar a migração
     - _Requisitos: 8.6, 12.1, 12.2_
 
-  - [ ] 1.2 Configurar variáveis de ambiente do módulo de vídeo
+  - [x] 1.2 Configurar variáveis de ambiente do módulo de vídeo
     - Adicionar `AWS_S3_VIDEO_BUCKET`, `AWS_POLLY_REGION` e `CRON_SECRET` ao arquivo `.env.example` com valores placeholder
     - Criar `src/server/lib/video-env.ts` que valida a presença dessas variáveis no startup e lança erro descritivo se ausentes
     - _Requisitos: 2.6, 7.1, 12.1_

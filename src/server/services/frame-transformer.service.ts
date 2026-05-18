@@ -21,6 +21,7 @@ import {
 } from "@server/lib/s3-video";
 import { prisma } from "@server/lib/prisma";
 import { logger } from "@server/lib/logger";
+import { isDevMode, buildLocalJobKey } from "@server/lib/local-storage";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -112,7 +113,9 @@ async function transformSingleFrame(
   visualStyle: string,
   s3Prefix: string,
 ): Promise<FrameTransformResult> {
-  const outS3Key = `${s3Prefix}transformed/frame_${String(frame.frameIndex).padStart(4, "0")}.jpg`;
+  const outS3Key = isDevMode()
+    ? buildLocalJobKey(jobId, `transformed/frame_${String(frame.frameIndex).padStart(4, "0")}.jpg`)
+    : `${s3Prefix}transformed/frame_${String(frame.frameIndex).padStart(4, "0")}.jpg`;
   const tmpDir = path.join(os.tmpdir(), `tx-${jobId}-${frame.frameIndex}-${crypto.randomBytes(4).toString("hex")}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 

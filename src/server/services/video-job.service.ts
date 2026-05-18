@@ -17,6 +17,7 @@ import { generateNarration } from "@server/services/narration.service";
 import { assembleVideo } from "@server/services/video-assembler.service";
 import { logger } from "@server/lib/logger";
 import { NotFoundError, ForbiddenError } from "@server/lib/errors";
+import { isDevMode, buildLocalJobKey } from "@server/lib/local-storage";
 import type { VideoJob } from "@prisma/client";
 import type { MusicCategory, OverlayText, FramePrompt } from "@server/lib/video-brief";
 import type { VideoPlatform, VideoVisualStyle, PollyVoice } from "@server/lib/video-validations";
@@ -234,9 +235,11 @@ export async function runPipeline(jobId: string): Promise<void> {
       return;
     }
 
-    // Store brief in S3
+    // Store brief in S3 (or local disk in dev)
     const prefix = buildJobS3Prefix(jobId);
-    const briefS3Key = `${prefix}brief.json`;
+    const briefS3Key = isDevMode()
+      ? buildLocalJobKey(jobId, "brief.json")
+      : `${prefix}brief.json`;
     await uploadVideoArtifact(briefS3Key, Buffer.from(serializeBrief(brief)), "application/json");
 
     stepDurations.push({ step: "generating_script", durationMs: Date.now() - t2 });

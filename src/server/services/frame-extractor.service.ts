@@ -25,6 +25,7 @@ import {
   type FrameHistogram,
 } from "@server/lib/frame-selector";
 import { logger } from "@server/lib/logger";
+import { isDevMode, buildLocalJobKey } from "@server/lib/local-storage";
 
 // Set ffmpeg binary path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -161,14 +162,11 @@ export async function extractFrames(
       const frameFile = frameFiles[i]!;
       const framePath = path.join(framesDir, frameFile);
       const frameBuffer = fs.readFileSync(framePath);
-      const s3Key = `${prefix}frames/frame_${String(i).padStart(4, "0")}.jpg`;
+      const s3Key = isDevMode()
+        ? buildLocalJobKey(jobId, `frames/frame_${String(i).padStart(4, "0")}.jpg`)
+        : `${prefix}frames/frame_${String(i).padStart(4, "0")}.jpg`;
 
-      await uploadVideoArtifact(s3Key, frameBuffer, "image/jpeg").catch(() => {
-        // In local dev without S3, store frames locally
-        const localFrameDir = path.join(process.cwd(), "public", "uploads", "frames", jobId);
-        fs.mkdirSync(localFrameDir, { recursive: true });
-        fs.writeFileSync(path.join(localFrameDir, `frame_${String(i).padStart(4, "0")}.jpg`), frameBuffer);
-      });
+      await uploadVideoArtifact(s3Key, frameBuffer, "image/jpeg");
       s3Keys.push(s3Key);
 
       // Build a simple pseudo-histogram based on file size variation

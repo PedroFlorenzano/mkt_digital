@@ -18,6 +18,14 @@ import type { Readable } from "node:stream";
 import { videoEnv } from "@server/lib/video-env";
 import { ExternalServiceError } from "@server/lib/errors";
 import { logger } from "@server/lib/logger";
+import {
+  isLocalKey,
+  isDevMode,
+  writeLocalArtifact,
+  readLocalArtifact,
+  deleteLocalArtifacts,
+  buildLocalJobKey,
+} from "@server/lib/local-storage";
 
 // ---------------------------------------------------------------------------
 // S3 client (reused across calls)
@@ -50,6 +58,7 @@ export function buildJobS3Prefix(jobId: string): string {
 
 /**
  * Uploads a buffer or readable stream to S3.
+ * Falls back to local disk storage in dev mode.
  * Throws ExternalServiceError on failure.
  */
 export async function uploadVideoArtifact(
@@ -57,6 +66,15 @@ export async function uploadVideoArtifact(
   body: Buffer | Readable | Uint8Array,
   contentType: string,
 ): Promise<void> {
+  // Dev mode: write to local disk
+  if (isDevMode() || isLocalKey(s3Key)) {
+    const localKey = isLocalKey(s3Key) ? s3Key : `local:${s3Key}`;
+    const buf = body instanceof Buffer ? body : Buffer.from(body as Uint8Array);
+    writeLocalArtifact(localKey, buf);
+    logger.info("[s3-video] Saved locally (dev)", { localKey });
+    return;
+  }
+
   try {
     await getS3Client().send(
       new PutObjectCommand({
@@ -80,9 +98,23 @@ export async function uploadVideoArtifact(
 
 /**
  * Downloads an S3 object and returns its content as a Buffer.
+ * Falls back to local disk in dev mode.
  * Throws ExternalServiceError on failure.
  */
 export async function downloadVideoArtifact(s3Key: string): Promise<Buffer> {
+  // Dev mode or local key: read from disk
+  if (isDevMode() || isLocalKey(s3Key)) {
+    const localKey = isLocalKey(s3Key) ? s3Key : `local:${s3Key}`;
+    try {
+      const buf = readLocalArtifact(localKey);
+      logger.info("[s3-video] Read locally (dev)", { localKey });
+      return buf;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new ExternalServiceError("Local Storage", `Read failed for ${localKey}: ${message}`);
+    }
+  }
+
   try {
     const response = await getS3Client().send(
       new GetObjectCommand({
@@ -147,6 +179,13 @@ export async function generatePresignedDownloadUrl(
   s3Key: string,
   expiresIn = 86400,
 ): Promise<string> {
+  // Dev mode: return a local public URL
+  if (isDevMode() || isLocalKey(s3Key)) {
+    const localKey = isLocalKey(s3Key) ? s3Key : `local:${s3Key}`;
+    const relativePath = localKey.replace("local:", "");
+    return `/${relativePath}`;
+  }
+
   try {
     const command = new GetObjectCommand({
       Bucket: videoEnv.s3VideoBucket,
@@ -165,16 +204,29 @@ export async function generatePresignedDownloadUrl(
 
 /**
  * Deletes a list of S3 keys. Uses batch delete when possible.
+ * In dev mode, deletes local files instead.
  * Silently ignores missing keys (not-found is not an error).
  */
 export async function deleteVideoArtifacts(s3Keys: string[]): Promise<void> {
   if (s3Keys.length === 0) return;
 
+  // Split local vs remote keys
+  const localKeys = s3Keys.filter(isLocalKey);
+  const remoteKeys = s3Keys.filter((k) => !isLocalKey(k));
+
+  // Delete local
+  if (localKeys.length > 0) {
+    deleteLocalArtifacts(localKeys);
+  }
+
+  // In dev mode there are no real S3 keys to delete
+  if (isDevMode() || remoteKeys.length === 0) return;
+
   try {
     // Batch delete up to 1000 keys at a time
     const batches: string[][] = [];
-    for (let i = 0; i < s3Keys.length; i += 1000) {
-      batches.push(s3Keys.slice(i, i + 1000));
+    for (let i = 0; i < remoteKeys.length; i += 1000) {
+      batches.push(remoteKeys.slice(i, i + 1000));
     }
 
     for (const batch of batches) {
@@ -189,10 +241,10 @@ export async function deleteVideoArtifacts(s3Keys: string[]): Promise<void> {
       );
     }
 
-    logger.info("[s3-video] Deleted artefacts", { count: s3Keys.length });
+    logger.info("[s3-video] Deleted artefacts", { count: remoteKeys.length });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error("[s3-video] Delete failed", err, { count: s3Keys.length });
+    logger.error("[s3-video] Delete failed", err, { count: remoteKeys.length });
     throw new ExternalServiceError("AWS S3", `Delete failed: ${message}`);
   }
 }
