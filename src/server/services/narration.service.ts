@@ -49,6 +49,11 @@ export async function generateNarration(
     throw new Error("[narration] Empty script — cannot generate narration");
   }
 
+  // Wrap in SSML for natural-sounding speech (Camila Neural only).
+  // Ricardo uses standard engine — plain text is passed instead.
+  const ssml = buildSsml(script, voice);
+  const isSsml = ssml.startsWith("<speak>");
+
   logger.info("[narration] Starting narration generation", {
     jobId,
     voice,
@@ -58,9 +63,10 @@ export async function generateNarration(
   // 1. Synthesise with Polly
   const audioBuffer = await synthesizeSpeech({
     voice,
-    text,
+    text: ssml,
     outputFormat: "mp3",
-    sampleRate: "22050",
+    sampleRate: "24000", // ignored internally — polly.ts picks the right rate per voice
+    textType: isSsml ? "ssml" : "text",
   });
 
   // 2. Upload to S3
@@ -80,7 +86,7 @@ export async function generateNarration(
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const durationSeconds = (wordCount / 120) * 60;
 
-  // 4. Log cost (Amazon Polly charges per character)
+  // 4. Log cost (Amazon Polly charges per character — use plain text length)
   try {
     await prisma.costLog.create({
       data: {
@@ -88,15 +94,14 @@ export async function generateNarration(
         videoJobId: jobId,
         type: "video_narration",
         model: "amazon.polly",
-        inputTokens: text.length, // chars as "tokens" for display
+        inputTokens: text.length,
         outputTokens: 0,
         images: 0,
-        costUsd: text.length * 0.000004, // $4 per 1M chars (Polly standard)
+        costUsd: text.length * 0.000004,
         metadata: JSON.stringify({ voice, charCount: text.length }),
       },
     });
   } catch (costErr) {
-    // Non-fatal — log and continue
     logger.error("[narration] Failed to write cost log", costErr, { jobId });
   }
 
@@ -112,4 +117,38 @@ export async function generateNarration(
     characterCount: text.length,
     durationSeconds,
   };
+}
+
+// ---------------------------------------------------------------------------
+// SSML builder — turns a script array into natural-sounding speech markup
+// ---------------------------------------------------------------------------
+
+/**
+ * Wraps sentences in SSML for more natural delivery:
+ * - rate="slow" for clarity (Neural supports this)
+ * - 450ms break between sentences (simulates breathing pause)
+ *
+ * Note: <prosody pitch> is NOT supported by Polly Neural — omitted intentionally.
+ * Ricardo uses the standard engine which does not support SSML prosody either,
+ * so for Ricardo we fall back to plain text.
+ */
+function buildSsml(sentences: string[], voice: PollyVoice): string {
+  // Standard engine (Ricardo) — return plain text, no SSML
+  if (voice === "Ricardo") {
+    return sentences.join(" ").trim();
+  }
+
+  // Neural engine (Camila) — SSML with breaks and rate control
+  const parts = sentences.map((sentence) => {
+    const clean = sentence.trim().replace(/([.!?])(\s*)$/, "$1");
+    return `${clean}<break time="450ms"/>`;
+  });
+
+  return (
+    `<speak>` +
+    `<prosody rate="slow">` +
+    parts.join("\n") +
+    `</prosody>` +
+    `</speak>`
+  );
 }

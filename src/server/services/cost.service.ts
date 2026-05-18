@@ -22,14 +22,11 @@ export interface DailyCost {
 }
 
 export const costService = {
-  async getByUserId(
-    userId: string,
+  async getByCompanyId(
+    companyId: string,
     period: string,
   ): Promise<{ summary: CostSummary; daily: DailyCost[]; logs: CostLog[] }> {
-    const company = await companyRepository.findByUserId(userId);
-    if (!company) throw new NotFoundError("Company");
-
-    const logs = await costRepository.findByCompanyId(company.id, period);
+    const logs = await costRepository.findByCompanyId(companyId, period);
 
     // Build summary
     let textCost = 0;
@@ -84,5 +81,15 @@ export const costService = {
       daily,
       logs,
     };
+  },
+
+  /** @deprecated Use getByCompanyId with companyId from session.activeCompanyId */
+  async getByUserId(
+    userId: string,
+    period: string,
+  ): Promise<{ summary: CostSummary; daily: DailyCost[]; logs: CostLog[] }> {
+    const company = await companyRepository.findByUserId(userId);
+    if (!company) throw new NotFoundError("Company");
+    return this.getByCompanyId(company.id, period);
   },
 };

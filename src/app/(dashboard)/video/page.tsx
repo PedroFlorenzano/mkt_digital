@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { PlusCircle, Video } from "lucide-react";
 import { DashboardLayout } from "@client/components/layout/dashboard-layout";

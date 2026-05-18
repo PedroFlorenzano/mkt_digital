@@ -17,9 +17,10 @@ async function main() {
   });
 
   const company = await prisma.company.upsert({
-    where: { userId: user.id },
+    where: { id: "company-demo" },
     update: {},
     create: {
+      id: "company-demo",
       userId: user.id,
       name: "Tech Solutions Brasil",
       description: "Empresa de consultoria em tecnologia e transformação digital para PMEs",

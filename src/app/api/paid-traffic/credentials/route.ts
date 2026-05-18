@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@server/lib/auth";
 import { prisma } from "@server/lib/prisma";
-import { requireTrafficAccess } from "@server/lib/plan-guard";
 import { credentialService, type AdPlatform, type RawCredentialData } from "@server/services/credential.service";
+import { companyService } from "@server/services/company.service";
 import { metaAdsConnector } from "@server/lib/meta-ads.connector";
 import { googleAdsConnector } from "@server/lib/google-ads.connector";
 import { withErrorHandler } from "@server/lib/api-handler";
@@ -13,13 +13,11 @@ export const GET = withErrorHandler(async () => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
-  await requireTrafficAccess(userId);
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) throw new UnauthorizedError("Nenhuma empresa selecionada");
 
-  const company = await prisma.company.findUnique({ where: { userId } });
-  if (!company) {
-    return NextResponse.json([], { status: 200 });
-  }
+  const company = await companyService.assertOwnership(userId, activeCompanyId);
 
   const credentials = await prisma.adPlatformCredential.findMany({
     where: { companyId: company.id },
@@ -40,16 +38,11 @@ export const POST = withErrorHandler(async (request: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
-  await requireTrafficAccess(userId);
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) throw new UnauthorizedError("Nenhuma empresa selecionada");
 
-  const company = await prisma.company.findUnique({ where: { userId } });
-  if (!company) {
-    return NextResponse.json(
-      { error: "Empresa não configurada. Configure seu perfil antes de adicionar credenciais." },
-      { status: 400 },
-    );
-  }
+  const company = await companyService.assertOwnership(userId, activeCompanyId);
 
   const body = (await request.json()) as Record<string, unknown>;
   const { platform, ...rest } = body;
@@ -107,3 +100,4 @@ export const POST = withErrorHandler(async (request: Request) => {
     { status: 400 },
   );
 });
+

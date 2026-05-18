@@ -50,15 +50,39 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      // First login: populate userId and force passage through company selector
       if (user) {
         token.id = user.id;
+        token.activeCompanyId = undefined;
       }
+
+      // Explicit update via useSession().update({ activeCompanyId })
+      if (trigger === "update" && session != null) {
+        if (session.activeCompanyId != null) {
+          // Security invariant: verify ownership in DB before accepting the value.
+          // This prevents a user from injecting another user's companyId via
+          // a direct call to the NextAuth update endpoint.
+          const company = await prisma.company.findFirst({
+            where: { id: session.activeCompanyId, userId: token.id },
+          });
+          if (company != null) {
+            token.activeCompanyId = session.activeCompanyId;
+          }
+          // else: invalid or unauthorized companyId — ignore silently,
+          // keeping the previous activeCompanyId value (may be undefined)
+        } else if (session.activeCompanyId === null) {
+          // Explicit company logout (e.g., company was deleted)
+          token.activeCompanyId = undefined;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as { id: string }).id = token.id as string;
+        session.user.id = token.id;
+        session.user.activeCompanyId = token.activeCompanyId ?? undefined;
       }
       return session;
     },

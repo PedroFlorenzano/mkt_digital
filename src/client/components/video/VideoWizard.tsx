@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   Video,
   Camera,
+  Lightbulb,
+  Scissors,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -39,6 +41,7 @@ export function VideoWizard() {
   // Step 1
   const [s3Key, setS3Key] = useState<string | null>(null);
   const [context, setContext] = useState("");
+  const [useAsInspiration, setUseAsInspiration] = useState(true);
 
   // Step 2
   const [platform, setPlatform] = useState<Platform>("instagram_reels");
@@ -70,6 +73,7 @@ export function VideoWizard() {
           ctaText: cta || undefined,
           narratorVoice: voice,
           contextDescription: context,
+          useAsInspiration,
         }),
       });
 
@@ -146,6 +150,54 @@ export function VideoWizard() {
                 <p className={`text-xs ${context.length > 500 ? "text-red-500" : "text-gray-400"}`}>
                   {context.length}/500 caracteres
                 </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Mode selector — shown after upload */}
+          {s3Key && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Como deseja usar este vídeo?</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Inspiration mode */}
+                <button
+                  type="button"
+                  onClick={() => setUseAsInspiration(true)}
+                  className={`flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all ${
+                    useAsInspiration
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className={`h-5 w-5 ${useAsInspiration ? "text-blue-600" : "text-gray-400"}`} />
+                    <span className="text-sm font-semibold text-gray-800">Apenas inspiração</span>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    A IA usa o vídeo como referência e <strong>gera cenas completamente novas</strong> com Stable Diffusion. Ideal para criar algo diferente do original.
+                  </p>
+                </button>
+
+                {/* Polish mode */}
+                <button
+                  type="button"
+                  onClick={() => setUseAsInspiration(false)}
+                  className={`flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all ${
+                    !useAsInspiration
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Scissors className={`h-5 w-5 ${!useAsInspiration ? "text-blue-600" : "text-gray-400"}`} />
+                    <span className="text-sm font-semibold text-gray-800">Melhorar meu vídeo</span>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Mantém <strong>suas próprias cenas</strong> e aplica cortes, grade de cor e narração profissional. Ideal para vídeos de academia, produto, etc.
+                  </p>
+                </button>
               </CardContent>
             </Card>
           )}
@@ -286,6 +338,7 @@ export function VideoWizard() {
               <Row label="Duração" value={`${duration} segundos`} />
               <Row label="Estilo" value={style === "realistic" ? "Realista" : style === "cinematic" ? "Cinematográfico" : "Minimalista"} />
               <Row label="Narração" value={`Voz ${voice}`} />
+              <Row label="Modo" value={useAsInspiration ? "Apenas inspiração (cenas novas)" : "Melhorar meu vídeo (manter cenas)"} />
               {cta && <Row label="CTA" value={cta} />}
               <Separator />
               <Row label="Contexto" value={context} />

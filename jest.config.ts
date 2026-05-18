@@ -29,7 +29,7 @@ const config: Config = {
       lines: 70,
     },
   },
-  setupFilesAfterFramework: undefined,
+  setupFilesAfterEnv: [],
 };
 
 export default config;

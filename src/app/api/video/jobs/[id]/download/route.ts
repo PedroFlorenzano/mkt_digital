@@ -4,6 +4,7 @@ import { authOptions } from "@server/lib/auth";
 import { prisma } from "@server/lib/prisma";
 import { withErrorHandler } from "@server/lib/api-handler";
 import { UnauthorizedError, ForbiddenError, NotFoundError } from "@server/lib/errors";
+import { companyService } from "@server/services/company.service";
 import { generatePresignedDownloadUrl } from "@server/lib/s3-video";
 
 function extractJobId(url: string): string | null {
@@ -16,9 +17,11 @@ export const GET = withErrorHandler(async (request: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
-  const company = await prisma.company.findUnique({ where: { userId } });
-  if (!company) throw new ForbiddenError("Empresa não encontrada.");
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) throw new UnauthorizedError("Nenhuma empresa selecionada");
+
+  const company = await companyService.assertOwnership(userId, activeCompanyId);
 
   const jobId = extractJobId(request.url);
   if (!jobId) throw new ForbiddenError("ID do job inválido.");

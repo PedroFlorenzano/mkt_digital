@@ -1,27 +1,20 @@
-import { prisma } from "@server/lib/prisma";
-import { ForbiddenError } from "@server/lib/errors";
-
-const ELIGIBLE_PLANS = ["Profissional", "Agencia"];
-
 /**
- * Verifies that the user has an active subscription on an eligible plan
- * (Profissional or Agencia) to access AI Paid Traffic features.
+ * plan-guard.ts
  *
- * Throws ForbiddenError if the user is not eligible.
- * No caching — verification happens on every request.
+ * Internal platform — no subscription tiers.
+ * All authenticated users have full access to all features.
+ * This file is retained only for import compatibility with existing callers.
  */
-export async function requireTrafficAccess(userId: string): Promise<void> {
-  const subscription = await prisma.subscription.findFirst({
-    where: {
-      userId,
-      status: { in: ["active", "trialing"] },
-    },
-    include: { plan: true },
-  });
 
-  if (!subscription || !ELIGIBLE_PLANS.includes(subscription.plan.name)) {
-    throw new ForbiddenError(
-      "Este recurso está disponível apenas nos planos Profissional e Agência.",
-    );
-  }
+// No-op: internal platform has no plan restrictions.
+export async function requireTrafficAccess(_userId: string): Promise<void> {
+  // All users have access — no subscription check needed.
+}
+
+// No-op: all users can create unlimited companies.
+export async function assertCompanyLimit(
+  _userId: string,
+  _currentCount: number,
+): Promise<void> {
+  // No limit enforced.
 }

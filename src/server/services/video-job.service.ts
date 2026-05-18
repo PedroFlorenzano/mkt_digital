@@ -50,6 +50,11 @@ export interface VideoJobConfig {
   tone: string;
   narratorVoice: PollyVoice;
   contextDescription: string;
+  /**
+   * true  = vídeo enviado é apenas inspiração; IA gera cenas novas (padrão)
+   * false = vídeo enviado é a base; aplicar edições profissionais sem substituir as cenas
+   */
+  useAsInspiration?: boolean;
 }
 
 export interface VideoJobStatusResponse {
@@ -100,12 +105,6 @@ export async function createJob(config: VideoJobConfig): Promise<VideoJob> {
 
   const tone = config.tone || company?.tone || "professional";
 
-  // Check/create credit record for current billing period
-  const creditBalance = await getOrCreateCreditBalance(config.companyId);
-  if (creditBalance <= 0) {
-    throw new ForbiddenError("Saldo de créditos de vídeo insuficiente para este mês.");
-  }
-
   const job = await prisma.videoJob.create({
     data: {
       companyId: config.companyId,
@@ -119,6 +118,7 @@ export async function createJob(config: VideoJobConfig): Promise<VideoJob> {
       narratorVoice: config.narratorVoice,
       contextDescription: config.contextDescription,
       rawVideoS3Key: config.rawVideoS3Key,
+      useAsInspiration: config.useAsInspiration ?? true,
     },
   });
 
@@ -307,9 +307,12 @@ export async function runPipeline(jobId: string): Promise<void> {
         platform: job.platform as VideoPlatform,
         targetDurationSeconds: job.targetDuration,
         transformedFrameS3Keys: transformResults.map((r) => r.s3Key),
+        rawVideoS3Key: job.rawVideoS3Key ?? undefined,
         narrationS3Key: narrationResult.s3Key,
         overlayTexts: brief.overlayTexts,
         musicCategory: brief.musicCategory,
+        script: brief.script,
+        useAsInspiration: job.useAsInspiration,
       });
     } catch (err) {
       await fail(err instanceof Error ? err.message : "Falha na montagem do vídeo");
@@ -484,14 +487,9 @@ async function getOrCreateCreditBalance(companyId: string): Promise<number> {
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Find subscription to determine plan credits
-  const subscription = await prisma.subscription.findFirst({
-    where: { userId: { equals: undefined }, status: { in: ["active", "trialing"] } },
-    include: { plan: true, user: { select: { company: { select: { id: true } } } } },
-  });
-
-  // Determine credits based on plan (10 for Profissional, 30 for Agencia)
-  const totalCredits = 10; // default; plan-based logic can be added
+  // Internal platform: unlimited credits — use a large fixed number so the
+  // upsert record exists for cost tracking without ever blocking generation.
+  const UNLIMITED = 9999;
 
   const credit = await prisma.videoCredit.upsert({
     where: { companyId_billingPeriodStart: { companyId, billingPeriodStart: periodStart } },
@@ -499,7 +497,7 @@ async function getOrCreateCreditBalance(companyId: string): Promise<number> {
     create: {
       companyId,
       billingPeriodStart: periodStart,
-      totalCredits,
+      totalCredits: UNLIMITED,
       usedCredits: 0,
     },
   });
@@ -636,4 +634,5 @@ Regras:
     }, []);
 
   const brief = briefObj;
+  return brief;
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@server/lib/auth";
 import { companyService } from "@server/services/company.service";
+import { companyRepository } from "@server/repositories/company.repository";
 import { withErrorHandler } from "@server/lib/api-handler";
 import { UnauthorizedError } from "@server/lib/errors";
 
@@ -20,8 +21,15 @@ export const GET = withErrorHandler(async () => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
-  const company = await companyService.getWithSocialByUserId(userId);
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+
+  if (!activeCompanyId) throw new UnauthorizedError("No active company selected");
+
+  // Verify ownership (throws ForbiddenError if not owned)
+  await companyService.assertOwnership(userId, activeCompanyId);
+
+  const company = await companyRepository.findByIdWithSocial(activeCompanyId);
 
   if (!company) return NextResponse.json(null);
 
@@ -35,11 +43,15 @@ export const POST = withErrorHandler(async (request: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+
+  if (!activeCompanyId) throw new UnauthorizedError("No active company selected");
+
   const body = await request.json() as Record<string, unknown>;
 
-  const company = await companyService.upsert(userId, {
-    name: typeof body["name"] === "string" ? body["name"] : "",
+  const company = await companyService.updateCompany(userId, activeCompanyId, {
+    name: typeof body["name"] === "string" ? body["name"] : undefined,
     description: typeof body["description"] === "string" ? body["description"] : undefined,
     sector: typeof body["sector"] === "string" ? body["sector"] : undefined,
     objective: typeof body["objective"] === "string" ? body["objective"] : undefined,

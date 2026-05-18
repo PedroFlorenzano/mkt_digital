@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@server/lib/auth";
-import { prisma } from "@server/lib/prisma";
 import { withErrorHandler } from "@server/lib/api-handler";
-import { UnauthorizedError, ForbiddenError, ValidationError } from "@server/lib/errors";
-import {
-  requireVideoAccess,
-  canGenerateVideo,
-  isValidContextDescription,
-} from "@server/lib/video-validations";
+import { UnauthorizedError, ValidationError } from "@server/lib/errors";
+import { companyService } from "@server/services/company.service";
 import {
   createJob,
   listJobs,
-  getOrCreateCreditBalancePublic,
 } from "@server/services/video-job.service";
+import {
+  isValidContextDescription,
+} from "@server/lib/video-validations";
 import type { VideoPlatform, VideoVisualStyle, PollyVoice } from "@server/lib/video-validations";
 
 const VALID_PLATFORMS: VideoPlatform[] = ["instagram_reels", "tiktok", "youtube_shorts"];
@@ -28,26 +25,11 @@ export const POST = withErrorHandler(async (request: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) throw new UnauthorizedError("Nenhuma empresa selecionada");
 
-  // Plan check
-  const subscription = await prisma.subscription.findFirst({
-    where: { userId, status: { in: ["active", "trialing"] } },
-    include: { plan: true },
-  });
-
-  if (!subscription || !requireVideoAccess(subscription.plan.name)) {
-    throw new ForbiddenError("Módulo de vídeo disponível apenas nos planos Profissional e Agência.");
-  }
-
-  const company = await prisma.company.findUnique({ where: { userId } });
-  if (!company) throw new ForbiddenError("Empresa não encontrada.");
-
-  // Credit check
-  const creditBalance = await getOrCreateCreditBalancePublic(company.id);
-  if (!canGenerateVideo(creditBalance)) {
-    throw new ForbiddenError(`Saldo de créditos de vídeo zerado este mês.`);
-  }
+  const company = await companyService.assertOwnership(userId, activeCompanyId);
 
   // Validate body
   const body = await request.json() as Record<string, unknown>;
@@ -59,6 +41,7 @@ export const POST = withErrorHandler(async (request: Request) => {
     ctaText,
     narratorVoice = "Camila",
     contextDescription,
+    useAsInspiration,
   } = body as Record<string, unknown>;
 
   if (!rawVideoS3Key || typeof rawVideoS3Key !== "string") {
@@ -90,13 +73,10 @@ export const POST = withErrorHandler(async (request: Request) => {
     tone: company.tone,
     narratorVoice: narratorVoice as PollyVoice,
     contextDescription: String(contextDescription),
+    useAsInspiration: useAsInspiration !== false,
   });
 
-  // Run pipeline asynchronously in the same Node.js process via setImmediate.
-  // This avoids the fragile fire-and-forget HTTP call to the cron worker
-  // (which breaks when NEXTAUTH_URL doesn't match the actual dev port).
   setImmediate(() => {
-    // Import dynamically to avoid circular import issues at module load time
     import("@server/services/video-job.service").then(({ runPipeline }) => {
       runPipeline(job.id).catch((err: unknown) => {
         console.error("[video-jobs] Pipeline failed for job", job.id, err);
@@ -105,7 +85,7 @@ export const POST = withErrorHandler(async (request: Request) => {
   });
 
   return NextResponse.json(
-    { jobId: job.id, status: job.status, creditsRemaining: creditBalance - 1 },
+    { jobId: job.id, status: job.status },
     { status: 201 },
   );
 });
@@ -117,10 +97,11 @@ export const GET = withErrorHandler(async (request: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) throw new UnauthorizedError("Nenhuma empresa selecionada");
 
-  const company = await prisma.company.findUnique({ where: { userId } });
-  if (!company) throw new ForbiddenError("Empresa não encontrada.");
+  const company = await companyService.assertOwnership(userId, activeCompanyId);
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") ?? "1", 10);

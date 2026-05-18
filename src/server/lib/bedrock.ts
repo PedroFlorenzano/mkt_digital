@@ -99,7 +99,7 @@ export async function generateTextWithBedrock(
 
       const inputTokens = result.usage?.input_tokens || 0;
       const outputTokens = result.usage?.output_tokens || 0;
-      const pricing = TEXT_PRICING[modelId] ?? TEXT_PRICING[TEXT_MODEL_FALLBACK];
+      const pricing = TEXT_PRICING[modelId] ?? TEXT_PRICING[TEXT_MODEL_FALLBACK]!;
       const costUsd =
         (inputTokens / 1000) * pricing.inputPer1k +
         (outputTokens / 1000) * pricing.outputPer1k;
@@ -245,4 +245,88 @@ export async function generateImageWithBedrock(
     images,
     usage: { imagesGenerated: images.length, costUsd, model: IMAGE_MODEL },
   };
+}
+
+/**
+ * Image-to-image: applies professional style to a source image while
+ * preserving the subject (product, person, scene). The `strength` parameter
+ * controls how much the AI changes the image:
+ *   0.0 = identical to source
+ *   0.4 = light style transfer (keep subject, improve lighting/colour)
+ *   0.7 = heavy transformation (subject preserved but scene/bg rebuilt)
+ *   1.0 = ignores source completely (pure text-to-image)
+ */
+export async function styleTransferWithBedrock(
+  companyId: string,
+  sourceImageBase64: string,   // raw base64 without data: prefix
+  prompt: string,
+  strength = 0.45,             // conservative: keeps product recognisable
+): Promise<{ imageBase64: string; costUsd: number }> {
+  const client = getImageClient();
+
+  const fullPrompt =
+    `${prompt}, professional marketing photography, sharp focus, ` +
+    `high quality commercial photo, clean background. ` +
+    `No text, no words, no watermark.`;
+
+  const negativePrompt =
+    "text, words, letters, watermark, blurry, low quality, distorted, " +
+    "deformed, different product, wrong color, wrong shape";
+
+  let attempts = 0;
+  const maxAttempts = 2;
+
+  while (attempts < maxAttempts) {
+    try {
+      const body = JSON.stringify({
+        prompt: fullPrompt,
+        negative_prompt: negativePrompt,
+        image: sourceImageBase64,   // SD Ultra image-to-image field
+        strength,                   // 0-1: how much to change from source
+        output_format: "jpeg",
+        aspect_ratio: "1:1",
+      });
+
+      const command = new InvokeModelCommand({
+        modelId: IMAGE_MODEL,
+        contentType: "application/json",
+        accept: "application/json",
+        body: Buffer.from(body),
+      });
+
+      const response = await client.send(command);
+      const result = JSON.parse(new TextDecoder().decode(response.body)) as {
+        images?: string[];
+      };
+
+      if (result.images?.[0]) {
+        const costUsd = IMAGE_PRICING.perImage;
+        await prisma.costLog.create({
+          data: {
+            companyId,
+            type: "video_transform",
+            model: IMAGE_MODEL,
+            images: 1,
+            costUsd,
+            metadata: JSON.stringify({ strength, promptLength: prompt.length }),
+          },
+        }).catch(() => {}); // non-fatal
+
+        return { imageBase64: result.images[0], costUsd };
+      }
+
+      throw new Error("SD returned no image");
+    } catch (err) {
+      attempts++;
+      console.error(
+        `[bedrock/style-transfer] attempt ${attempts} failed:`,
+        err instanceof Error ? err.message : err,
+      );
+      if (attempts < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+  }
+
+  throw new Error("Style transfer failed after all retries");
 }

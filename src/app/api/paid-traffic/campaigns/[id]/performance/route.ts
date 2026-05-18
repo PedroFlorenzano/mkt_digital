@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@server/lib/auth";
-import { prisma } from "@server/lib/prisma";
 import { requireTrafficAccess } from "@server/lib/plan-guard";
 import { campaignService } from "@server/services/campaign.service";
+import { companyService } from "@server/services/company.service";
 import { withErrorHandler } from "@server/lib/api-handler";
-import { UnauthorizedError, NotFoundError } from "@server/lib/errors";
+import { UnauthorizedError } from "@server/lib/errors";
 
 /**
  * GET /api/paid-traffic/campaigns/[id]/performance
@@ -29,7 +29,9 @@ export const GET = withErrorHandler(async (request: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) throw new UnauthorizedError("Nenhuma empresa selecionada");
 
   // 2. Check plan eligibility
   await requireTrafficAccess(userId);
@@ -78,12 +80,8 @@ export const GET = withErrorHandler(async (request: Request) => {
     );
   }
 
-  // 5. Fetch company for the authenticated user
-  const company = await prisma.company.findUnique({ where: { userId } });
-
-  if (!company) {
-    throw new NotFoundError("Empresa");
-  }
+  // 5. Verify ownership and resolve company
+  const company = await companyService.assertOwnership(userId, activeCompanyId);
 
   // 6. Generate performance report via service
   const report = await campaignService.getPerformanceReport(

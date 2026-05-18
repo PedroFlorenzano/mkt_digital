@@ -29,7 +29,10 @@ export interface PollyConfig {
   voice: PollyVoice;
   text: string;
   outputFormat: "mp3";
-  sampleRate: "22050";
+  /** Neural engine works best at 24000 Hz; standard at 22050 Hz */
+  sampleRate: "22050" | "24000";
+  /** "text" (default) or "ssml" for markup-enhanced speech */
+  textType?: "text" | "ssml";
 }
 
 // ---------------------------------------------------------------------------
@@ -52,29 +55,36 @@ function getPollyClient(): PollyClient {
 /**
  * Calls Amazon Polly and returns the synthesised MP3 audio as a Buffer.
  *
+ * Engine selection:
+ *   - Camila → neural (natural-sounding) at 24000 Hz
+ *   - Ricardo → standard (neural not available for pt-BR male) at 22050 Hz
+ *
  * @param config  Voice, text and audio format configuration
  * @returns       Raw MP3 bytes
  * @throws        ExternalServiceError if Polly fails
  */
 export async function synthesizeSpeech(config: PollyConfig): Promise<Buffer> {
-  const { voice, text, outputFormat, sampleRate } = config;
+  const { voice, text, outputFormat, textType = "text" } = config;
 
   if (!text.trim()) {
     throw new Error("[aws-polly] Cannot synthesise empty text.");
   }
 
-  logger.info("[aws-polly] Synthesising speech", {
-    voice,
-    charCount: text.length,
-  });
+  // Camila supports Neural; Ricardo only supports Standard in pt-BR
+  const engine  = voice === "Camila" ? "neural"    : "standard";
+  const rate    = voice === "Camila" ? "24000"     : "22050";
+
+  logger.info("[aws-polly] Synthesising speech", { voice, engine, textType, charCount: text.length });
 
   try {
     const command = new SynthesizeSpeechCommand({
       VoiceId: voice as VoiceId,
       Text: text,
+      TextType: textType === "ssml" ? "ssml" : "text",
       OutputFormat: outputFormat,
-      SampleRate: sampleRate,
+      SampleRate: rate,
       LanguageCode: "pt-BR",
+      Engine: engine,
     });
 
     const response = await getPollyClient().send(command);

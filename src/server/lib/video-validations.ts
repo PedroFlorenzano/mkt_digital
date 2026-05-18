@@ -9,9 +9,6 @@ export type VideoPlatform = "instagram_reels" | "tiktok" | "youtube_shorts";
 export type VideoVisualStyle = "realistic" | "cinematic" | "minimalist";
 export type PollyVoice = "Camila" | "Ricardo";
 
-/** Plans eligible for the Video module (exact, case-sensitive) */
-const ELIGIBLE_PLANS = new Set(["Profissional", "Agencia"]);
-
 /** Max file size: 500 MB in bytes */
 export const MAX_VIDEO_FILE_SIZE_BYTES = 524_288_000;
 
@@ -31,25 +28,6 @@ const WORDS_PER_MINUTE = 120;
 
 /** Tolerance in seconds for script duration validation */
 const DURATION_TOLERANCE_SECONDS = 5;
-
-// ---------------------------------------------------------------------------
-// Access control
-// ---------------------------------------------------------------------------
-
-/**
- * Returns true if the plan name is eligible for the Video module.
- * Case-sensitive — only "Profissional" and "Agencia" are accepted.
- */
-export function requireVideoAccess(planName: string): boolean {
-  return ELIGIBLE_PLANS.has(planName);
-}
-
-/**
- * Returns true if the user has at least 1 video credit remaining.
- */
-export function canGenerateVideo(creditBalance: number): boolean {
-  return creditBalance > 0;
-}
 
 // ---------------------------------------------------------------------------
 // Upload validation

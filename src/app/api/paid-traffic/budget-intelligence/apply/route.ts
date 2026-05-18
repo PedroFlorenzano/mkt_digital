@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@server/lib/auth";
-import { prisma } from "@server/lib/prisma";
-import { requireTrafficAccess } from "@server/lib/plan-guard";
 import {
   budgetIntelligenceService,
   ApplyBudgetInput,
 } from "@server/services/budget-intelligence.service";
+import { companyService } from "@server/services/company.service";
 import { withErrorHandler } from "@server/lib/api-handler";
 import { UnauthorizedError } from "@server/lib/errors";
 
@@ -15,10 +14,9 @@ export const POST = withErrorHandler(async (request: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError();
 
-  const userId = (session.user as { id: string }).id;
-
-  // 2. Check plan eligibility
-  await requireTrafficAccess(userId);
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) throw new UnauthorizedError("Nenhuma empresa selecionada");
 
   // 3. Parse and validate body
   const body = await request.json() as Record<string, unknown>;
@@ -31,15 +29,8 @@ export const POST = withErrorHandler(async (request: Request) => {
     );
   }
 
-  // 4. Fetch company for the authenticated user
-  const company = await prisma.company.findUnique({ where: { userId } });
-
-  if (!company) {
-    return NextResponse.json(
-      { error: "Empresa não encontrada para o usuário autenticado." },
-      { status: 404 },
-    );
-  }
+  // 4. Verify ownership and resolve company
+  const company = await companyService.assertOwnership(userId, activeCompanyId);
 
   // 5. Apply budget allocations
   const input: ApplyBudgetInput = {
@@ -54,3 +45,4 @@ export const POST = withErrorHandler(async (request: Request) => {
 
   return NextResponse.json(result, { status: 200 });
 });
+

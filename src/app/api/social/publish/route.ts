@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@server/lib/auth";
 import { prisma } from "@server/lib/prisma";
+import { companyService } from "@server/services/company.service";
 import {
   publishToInstagram,
   publishToFacebook,
@@ -15,13 +16,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
-  const userId = (session.user as { id: string }).id;
-  const company = await prisma.company.findUnique({
-    where: { userId },
+  const userId = session.user.id;
+  const activeCompanyId = session.user.activeCompanyId;
+  if (!activeCompanyId) {
+    return NextResponse.json({ error: "Nenhuma empresa selecionada" }, { status: 401 });
+  }
+
+  let company;
+  try {
+    company = await companyService.assertOwnership(userId, activeCompanyId);
+  } catch {
+    return NextResponse.json({ error: "Empresa não configurada" }, { status: 400 });
+  }
+
+  // Re-fetch with socialAccounts included
+  const companyWithSocial = await prisma.company.findUnique({
+    where: { id: company.id },
     include: { socialAccounts: true },
   });
 
-  if (!company) {
+  if (!companyWithSocial) {
     return NextResponse.json({ error: "Empresa não configurada" }, { status: 400 });
   }
 
@@ -33,14 +47,14 @@ export async function POST(request: Request) {
   }
 
   const post = await prisma.post.findFirst({
-    where: { id: postId, companyId: company.id },
+    where: { id: postId, companyId: companyWithSocial.id },
   });
 
   if (!post) {
     return NextResponse.json({ error: "Post não encontrado" }, { status: 404 });
   }
 
-  const account = company.socialAccounts.find(
+  const account = companyWithSocial.socialAccounts.find(
     (a) => a.platform === post.platform && a.connected && a.accessToken
   );
 
