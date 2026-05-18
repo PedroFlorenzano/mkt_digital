@@ -5,6 +5,9 @@ import { companyService } from "@server/services/company.service";
 import { generateImageWithBedrock } from "@server/lib/bedrock";
 import { composeMarketingPost, applyLayoutTemplate, bufferToDataUrl } from "@server/lib/image-compose";
 import { translateToImagePrompt, buildFallbackPrompt } from "@server/services/promptTranslator";
+import * as path from "node:path";
+import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 
 const SUPPORTED_PLATFORMS = ["instagram", "facebook", "linkedin", "whatsapp"];
 
@@ -23,6 +26,24 @@ function sanitizeColors(raw: unknown): string[] {
 function dataUrlToBuffer(dataUrl: string): Buffer {
   const comma = dataUrl.indexOf(",");
   return Buffer.from(dataUrl.slice(comma + 1), "base64");
+}
+
+/**
+ * Persists a base64 data URL as a WebP file under public/uploads/
+ * and returns the relative public URL (/uploads/filename.webp).
+ * This is required because Instagram's Media API only accepts public HTTP URLs,
+ * not base64 data URIs.
+ */
+function saveDataUrlToPublic(dataUrl: string): string {
+  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  fs.mkdirSync(uploadsDir, { recursive: true });
+
+  const filename = `${crypto.randomUUID()}.webp`;
+  const filePath = path.join(uploadsDir, filename);
+  const buffer = dataUrlToBuffer(dataUrl);
+  fs.writeFileSync(filePath, buffer);
+
+  return `/uploads/${filename}`;
 }
 
 export async function POST(request: Request) {
@@ -133,7 +154,6 @@ export async function POST(request: Request) {
                 brandColors: colors,
               });
             } else {
-              // Layout padrão: gradiente no rodapé com texto integrado
               composed = await composeMarketingPost(buf, {
                 headline: overlayHeadline || "",
                 body: overlayBody || undefined,
@@ -151,7 +171,13 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ images: finalImages, usage: result.usage });
+    // Save images to public/uploads/ and return public URLs.
+    // Base64 data URIs are NOT accepted by Instagram's Media API —
+    // only public HTTP URLs work. Saving to disk makes all downstream
+    // publish flows work reliably.
+    const publicUrls = finalImages.map(saveDataUrlToPublic);
+
+    return NextResponse.json({ images: publicUrls, usage: result.usage });
   } catch (err) {
     console.error("[generate/image] error:", err instanceof Error ? err.message : err);
     const message = err instanceof Error ? err.message : "Erro desconhecido";

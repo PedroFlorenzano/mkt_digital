@@ -63,6 +63,7 @@ export async function POST(request: Request) {
     platform: account.platform,
     profileName: account.profileName,
     connected: account.connected,
+    updatedAt: account.updatedAt?.toISOString?.() ?? undefined,
   });
 }
 

@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/publish",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/paid-traffic-monitor",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

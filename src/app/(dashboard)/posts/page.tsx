@@ -18,6 +18,10 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  Send,
+  Pencil,
+  Loader2,
+  XCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@client/components/layout/dashboard-layout";
 import { Button } from "@client/components/ui/button";
@@ -61,6 +65,16 @@ export default function PostsPage() {
   const [page, setPage] = useState(1);
   const PER_PAGE = 9;
 
+  // Edit state
+  const [editMode, setEditMode] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  // Publish state
+  const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState<{ success: boolean; message: string } | null>(null);
+
   useEffect(() => {
     if (session) {
       fetch("/api/posts")
@@ -71,6 +85,69 @@ export default function PostsPage() {
         });
     }
   }, [session]);
+
+  function openPost(post: Post) {
+    setSelectedPost(post);
+    setEditMode(false);
+    setEditContent(post.content ?? "");
+    setSaveError("");
+    setPublishResult(null);
+  }
+
+  function closeModal() {
+    setSelectedPost(null);
+    setEditMode(false);
+    setSaveError("");
+    setPublishResult(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!selectedPost) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const res = await fetch(`/api/posts/${selectedPost.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editContent }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        setSaveError(d.error ?? "Erro ao salvar");
+        return;
+      }
+      const updated = await res.json() as Post;
+      setPosts((prev) => prev.map((p) => p.id === updated.id ? { ...p, content: updated.content } : p));
+      setSelectedPost((prev) => prev ? { ...prev, content: updated.content } : null);
+      setEditMode(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePublish(postId: string) {
+    setPublishing(true);
+    setPublishResult(null);
+    try {
+      const res = await fetch("/api/social/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId }),
+      });
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (data.success) {
+        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, status: "published", publishedAt: new Date().toISOString() } : p));
+        setSelectedPost((prev) => prev ? { ...prev, status: "published", publishedAt: new Date().toISOString() } : null);
+        setPublishResult({ success: true, message: "Post publicado com sucesso!" });
+      } else {
+        setPublishResult({ success: false, message: data.error ?? "Falha ao publicar" });
+      }
+    } catch {
+      setPublishResult({ success: false, message: "Erro de conexão" });
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   const filtered = posts.filter((p) => {
     const matchSearch = !search || p.content?.toLowerCase().includes(search.toLowerCase()) || p.platform.includes(search.toLowerCase());
@@ -199,7 +276,7 @@ export default function PostsPage() {
                 <Card
                   key={post.id}
                   className="overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 cursor-pointer group"
-                  onClick={() => setSelectedPost(post)}
+                  onClick={() => openPost(post)}
                 >
                   {/* Image */}
                   {post.imageUrl ? (
@@ -287,12 +364,12 @@ export default function PostsPage() {
 
       {/* Post Detail Modal */}
       {selectedPost && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeModal}>
           <div
             className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header — fixo */}
+            {/* Modal header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-3">
                 {(() => {
@@ -309,12 +386,12 @@ export default function PostsPage() {
                   {statusConfig[selectedPost.status]?.label ?? selectedPost.status}
                 </Badge>
               </div>
-              <button onClick={() => setSelectedPost(null)} className="p-2 rounded-lg hover:bg-gray-100 transition">
+              <button onClick={closeModal} className="p-2 rounded-lg hover:bg-gray-100 transition">
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
 
-            {/* Conteúdo com scroll */}
+            {/* Scrollable content */}
             <div className="overflow-y-auto flex-1">
               {selectedPost.imageUrl && (
                 <div className="relative w-full bg-gray-100 shrink-0">
@@ -327,10 +404,57 @@ export default function PostsPage() {
               )}
 
               <div className="p-6 space-y-4">
+                {/* Publish result feedback */}
+                {publishResult && (
+                  <div className={cn(
+                    "flex items-center gap-2 p-3 rounded-lg text-sm",
+                    publishResult.success
+                      ? "bg-green-50 border border-green-100 text-green-700"
+                      : "bg-red-50 border border-red-100 text-red-700"
+                  )}>
+                    {publishResult.success
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      : <XCircle className="h-4 w-4 shrink-0" />}
+                    {publishResult.message}
+                  </div>
+                )}
+
+                {/* Content — editable or read-only */}
                 {selectedPost.content && (
                   <div>
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Conteúdo</p>
-                    <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm">{selectedPost.content}</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Conteúdo</p>
+                      {!editMode && selectedPost.status !== "published" && (
+                        <button
+                          onClick={() => { setEditMode(true); setEditContent(selectedPost.content ?? ""); }}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Editar
+                        </button>
+                      )}
+                    </div>
+                    {editMode ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows={6}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        />
+                        {saveError && <p className="text-xs text-red-600">{saveError}</p>}
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
+                            {saving ? <><Loader2 className="h-3 w-3 animate-spin" />Salvando...</> : "Salvar"}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditMode(false)} disabled={saving}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm">{selectedPost.content}</p>
+                    )}
                   </div>
                 )}
 
@@ -353,8 +477,24 @@ export default function PostsPage() {
                   )}
                 </div>
 
-                <div className="flex gap-3 pt-2">
-                  {selectedPost.status === "draft" && (
+                <div className="flex gap-3 pt-2 flex-wrap">
+                  {/* Publish now — only for draft/scheduled */}
+                  {(selectedPost.status === "draft" || selectedPost.status === "scheduled") && !editMode && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => handlePublish(selectedPost.id)}
+                      disabled={publishing}
+                    >
+                      {publishing
+                        ? <><Loader2 className="h-4 w-4 animate-spin" />Publicando...</>
+                        : <><Send className="h-4 w-4" />Publicar agora</>
+                      }
+                    </Button>
+                  )}
+
+                  {/* Schedule — only for drafts */}
+                  {selectedPost.status === "draft" && !editMode && (
                     <Button variant="outline" size="sm" asChild>
                       <Link href="/schedule">
                         <Calendar className="h-4 w-4" />
@@ -362,6 +502,7 @@ export default function PostsPage() {
                       </Link>
                     </Button>
                   )}
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -371,7 +512,7 @@ export default function PostsPage() {
                       const res = await fetch(`/api/posts?id=${selectedPost.id}`, { method: "DELETE" });
                       if (res.ok) {
                         setPosts((prev) => prev.filter((p) => p.id !== selectedPost.id));
-                        setSelectedPost(null);
+                        closeModal();
                       }
                     }}
                   >
