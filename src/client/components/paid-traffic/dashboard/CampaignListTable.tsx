@@ -124,7 +124,7 @@ export function CampaignListTable() {
         <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
           <Inbox className="h-10 w-10 text-gray-300" />
           <p className="text-gray-500 font-medium">Nenhuma campanha encontrada</p>
-          <p className="text-gray-400 text-sm">Crie sua primeira campanha com IA clicando em "Nova Campanha".</p>
+          <p className="text-gray-400 text-sm">Crie sua primeira campanha com IA clicando em &quot;Nova Campanha&quot;.</p>
         </CardContent>
       </Card>
     );

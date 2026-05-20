@@ -8,7 +8,13 @@ import {
   publishToFacebook,
   publishToLinkedin,
   publishToWhatsapp,
+  publishCarouselToInstagram,
+  publishReelToInstagram,
+  publishStoryToInstagram,
+  publishVideoToTikTok,
+  publishPhotoToTikTok,
 } from "@server/lib/social";
+import { validateReelPublish } from "@server/services/reel.service";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -68,14 +74,84 @@ export async function POST(request: Request) {
   let result;
 
   switch (post.platform) {
-    case "instagram":
-      result = await publishToInstagram(
-        account.accessToken,
-        account.profileId || "",
-        post.content || "",
-        post.imageUrl
-      );
+    case "instagram": {
+      const format = post.format ?? "post";
+
+      if (format === "carousel") {
+        // Parse slidesJson for image URLs; fall back to standard post if missing/invalid
+        let imageUrls: string[] = [];
+        if (post.slidesJson) {
+          try {
+            const slides = JSON.parse(post.slidesJson) as Array<{ imageUrl?: string; url?: string }>;
+            imageUrls = slides
+              .map((s) => s.imageUrl ?? s.url ?? "")
+              .filter(Boolean);
+          } catch {
+            // malformed JSON — fall through to default
+          }
+        }
+
+        if (imageUrls.length > 0) {
+          result = await publishCarouselToInstagram(
+            account.accessToken,
+            account.profileId || "",
+            post.content ?? "",
+            imageUrls
+          );
+        } else {
+          // No valid slides — fall back to standard photo post
+          result = await publishToInstagram(
+            account.accessToken,
+            account.profileId || "",
+            post.content ?? "",
+            post.imageUrl
+          );
+        }
+      } else if (format === "reel") {
+        const videoUrl = post.imageUrl ?? "";
+        try {
+          validateReelPublish({
+            videoUrl,
+            durationSeconds: 30, // placeholder; real validation happens at upload time
+            platform: "instagram",
+            socialAccountConnected: account.connected,
+          });
+        } catch (err) {
+          return NextResponse.json(
+            { error: err instanceof Error ? err.message : "Validação do Reel falhou" },
+            { status: 400 }
+          );
+        }
+        result = await publishReelToInstagram(
+          account.accessToken,
+          account.profileId || "",
+          post.content ?? "",
+          videoUrl
+        );
+      } else if (format === "story") {
+        const mediaUrl = post.imageUrl ?? "";
+        const videoExtensions = [".mp4", ".mov", ".avi"];
+        const isVideo = videoExtensions.some((ext) =>
+          mediaUrl.toLowerCase().endsWith(ext)
+        );
+        const mediaType: "IMAGE" | "VIDEO" = isVideo ? "VIDEO" : "IMAGE";
+        result = await publishStoryToInstagram(
+          account.accessToken,
+          account.profileId || "",
+          mediaUrl,
+          mediaType
+        );
+      } else {
+        // Default: standard "post" format
+        result = await publishToInstagram(
+          account.accessToken,
+          account.profileId || "",
+          post.content ?? "",
+          post.imageUrl
+        );
+      }
       break;
+    }
     case "facebook":
       result = await publishToFacebook(
         account.accessToken,
@@ -100,6 +176,50 @@ export async function POST(request: Request) {
         post.imageUrl
       );
       break;
+    case "tiktok": {
+      const format = post.format ?? "post";
+
+      if (format === "reel" || format === "post") {
+        // Video post: imageUrl stores the public video URL for TikTok
+        const videoUrl = post.imageUrl ?? "";
+        if (!videoUrl) {
+          result = { success: false, error: "URL do vídeo é obrigatória para posts de vídeo no TikTok" };
+        } else {
+          result = await publishVideoToTikTok(
+            account.accessToken,
+            post.content ?? "",
+            videoUrl,
+          );
+        }
+      } else if (format === "carousel") {
+        // Photo carousel post
+        let imageUrls: string[] = [];
+        if (post.slidesJson) {
+          try {
+            const slides = JSON.parse(post.slidesJson) as Array<{ imageUrl?: string }>;
+            imageUrls = slides.map((s) => s.imageUrl ?? "").filter(Boolean);
+          } catch {
+            // malformed JSON
+          }
+        }
+        if (imageUrls.length === 0 && post.imageUrl) {
+          imageUrls = [post.imageUrl];
+        }
+        result = await publishPhotoToTikTok(
+          account.accessToken,
+          post.content ?? "",
+          imageUrls,
+        );
+      } else {
+        // Default: treat as video post
+        result = await publishVideoToTikTok(
+          account.accessToken,
+          post.content ?? "",
+          post.imageUrl ?? "",
+        );
+      }
+      break;
+    }
     default:
       return NextResponse.json({ error: "Plataforma não suportada" }, { status: 400 });
   }

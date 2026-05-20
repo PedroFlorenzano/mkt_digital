@@ -39,6 +39,11 @@ const mockPost = {
   scheduledAt: null,
   publishedAt: null,
   createdAt: new Date(),
+  format: "post",
+  slidesJson: null,
+  boostSuggestionJson: null,
+  boostCampaignId: null,
+  gridOrder: null,
 };
 
 describe("PostService", () => {
@@ -72,7 +77,7 @@ describe("PostService", () => {
       jest.mocked(companyRepository.findByUserId).mockResolvedValue(mockCompany);
 
       await expect(
-        postService.create("user-1", { platform: "tiktok", content: "test" })
+        postService.create("user-1", { platform: "snapchat", content: "test" })
       ).rejects.toThrow(ValidationError);
     });
 
@@ -145,6 +150,177 @@ describe("PostService", () => {
 
       await expect(postService.delete("user-1", "post-1")).resolves.not.toThrow();
       expect(postRepository.delete).toHaveBeenCalledWith("post-1");
+    });
+  });
+
+  describe("createForCompany — reel validations", () => {
+    it("accepts tiktok as a valid platform", async () => {
+      const reelPost = { ...mockPost, platform: "tiktok", format: "reel", imageUrl: "/uploads/vid.mp4" };
+      jest.mocked(postRepository.create).mockResolvedValue(reelPost);
+
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "tiktok",
+          content: "My reel caption",
+          imageUrl: "/uploads/vid.mp4",
+          format: "reel",
+        })
+      ).resolves.not.toThrow();
+    });
+
+    it("accepts youtube as a valid platform", async () => {
+      const reelPost = { ...mockPost, platform: "youtube", format: "reel", imageUrl: "/uploads/vid.mp4" };
+      jest.mocked(postRepository.create).mockResolvedValue(reelPost);
+
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "youtube",
+          content: "My reel caption",
+          imageUrl: "/uploads/vid.mp4",
+          format: "reel",
+        })
+      ).resolves.not.toThrow();
+    });
+
+    it("rejects reel without imageUrl", async () => {
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "instagram",
+          content: "My caption",
+          format: "reel",
+        })
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("rejects reel with empty imageUrl", async () => {
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "instagram",
+          content: "My caption",
+          imageUrl: "   ",
+          format: "reel",
+        })
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("rejects reel with null content", async () => {
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "instagram",
+          content: null,
+          imageUrl: "/uploads/vid.mp4",
+          format: "reel",
+        })
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("rejects reel with whitespace-only content", async () => {
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "instagram",
+          content: "   ",
+          imageUrl: "/uploads/vid.mp4",
+          format: "reel",
+        })
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("rejects invalid platform even for reels", async () => {
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "pinterest",
+          content: "My caption",
+          imageUrl: "/uploads/vid.mp4",
+          format: "reel",
+        })
+      ).rejects.toThrow(ValidationError);
+    });
+  });
+
+  describe("createForCompany — scheduledAt handling", () => {
+    it("creates as scheduled when scheduledAt is strictly in the future", async () => {
+      const future = new Date(Date.now() + 60_000).toISOString();
+      const scheduledPost = { ...mockPost, status: "scheduled", scheduledAt: new Date(future) };
+      jest.mocked(postRepository.create).mockResolvedValue(scheduledPost);
+
+      const post = await postService.createForCompany("company-1", {
+        platform: "instagram",
+        content: "test",
+        scheduledAt: future,
+      });
+
+      expect(post.status).toBe("scheduled");
+    });
+
+    it("creates as draft when scheduledAt is in the past", async () => {
+      const past = new Date(Date.now() - 60_000).toISOString();
+      const draftPost = { ...mockPost, status: "draft", scheduledAt: null };
+      jest.mocked(postRepository.create).mockResolvedValue(draftPost);
+
+      const post = await postService.createForCompany("company-1", {
+        platform: "instagram",
+        content: "test",
+        scheduledAt: past,
+      });
+
+      // repository.create should be called with status=draft and scheduledAt=null
+      expect(postRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "draft", scheduledAt: null })
+      );
+      expect(post.status).toBe("draft");
+    });
+
+    it("rejects invalid ISO string for scheduledAt", async () => {
+      await expect(
+        postService.createForCompany("company-1", {
+          platform: "instagram",
+          content: "test",
+          scheduledAt: "not-a-date",
+        })
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("creates as draft when scheduledAt is null", async () => {
+      const draftPost = { ...mockPost, status: "draft", scheduledAt: null };
+      jest.mocked(postRepository.create).mockResolvedValue(draftPost);
+
+      const post = await postService.createForCompany("company-1", {
+        platform: "instagram",
+        content: "test",
+        scheduledAt: null,
+      });
+
+      expect(post.status).toBe("draft");
+    });
+  });
+
+  describe("listByCompanyId — format filter", () => {
+    it("passes format filter to repository when provided", async () => {
+      jest.mocked(postRepository.findByCompanyId).mockResolvedValue([]);
+      jest.mocked(postRepository.countByCompanyId).mockResolvedValue(0);
+
+      await postService.listByCompanyId("company-1", { format: "reel" });
+
+      expect(postRepository.findByCompanyId).toHaveBeenCalledWith(
+        "company-1",
+        expect.objectContaining({ format: "reel" })
+      );
+      expect(postRepository.countByCompanyId).toHaveBeenCalledWith(
+        "company-1",
+        expect.objectContaining({ format: "reel" })
+      );
+    });
+
+    it("does not pass format filter when omitted", async () => {
+      jest.mocked(postRepository.findByCompanyId).mockResolvedValue([]);
+      jest.mocked(postRepository.countByCompanyId).mockResolvedValue(0);
+
+      await postService.listByCompanyId("company-1");
+
+      expect(postRepository.findByCompanyId).toHaveBeenCalledWith(
+        "company-1",
+        expect.objectContaining({ format: undefined })
+      );
     });
   });
 });

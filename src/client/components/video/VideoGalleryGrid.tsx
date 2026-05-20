@@ -68,7 +68,7 @@ export function VideoGalleryGrid() {
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <VideoOff className="h-12 w-12 text-gray-300" />
         <p className="text-gray-500 font-medium">Nenhum vídeo gerado ainda</p>
-        <p className="text-gray-400 text-sm">Crie seu primeiro reel com IA clicando em "Novo Vídeo".</p>
+        <p className="text-gray-400 text-sm">Crie seu primeiro reel com IA clicando em &quot;Novo Vídeo&quot;.</p>
       </div>
     );
   }

@@ -111,7 +111,7 @@ export async function extractFrames(
 
     // 2. Get actual video duration via ffprobe
     const actualDuration = await new Promise<number>((resolve) => {
-      ffmpeg.ffprobe(rawVideoPath, (err, metadata) => {
+      ffmpeg.ffprobe(rawVideoPath, (err: Error | null, metadata: ffmpeg.FfprobeData) => {
         if (err || !metadata?.format?.duration) {
           resolve(durationSeconds); // fallback to estimate
         } else {

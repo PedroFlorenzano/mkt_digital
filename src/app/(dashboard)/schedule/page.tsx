@@ -3,7 +3,6 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ChevronLeft,
   ChevronRight,
@@ -30,6 +29,7 @@ interface Post {
   status: string;
   scheduledAt: string | null;
   createdAt: string;
+  format?: string | null;
 }
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -41,6 +41,22 @@ const platformColors: Record<string, string> = {
   linkedin: "bg-blue-100 text-blue-800 border-blue-200",
   whatsapp: "bg-green-100 text-green-700 border-green-200",
 };
+
+const formatConfig: Record<string, { label: string; emoji: string; cls: string }> = {
+  post:      { label: "Post",      emoji: "📝", cls: "bg-gray-100 text-gray-600 border-gray-200" },
+  carousel:  { label: "Carrossel", emoji: "🗂️", cls: "bg-orange-100 text-orange-700 border-orange-200" },
+  story:     { label: "Story",     emoji: "⚡", cls: "bg-purple-100 text-purple-700 border-purple-200" },
+  reel:      { label: "Reel",      emoji: "🎬", cls: "bg-blue-100 text-blue-700 border-blue-200" },
+};
+
+function FormatBadge({ format }: { format?: string | null }) {
+  const cfg = formatConfig[format ?? "post"] ?? formatConfig["post"]!;
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border font-medium", cfg.cls)}>
+      {cfg.emoji} {cfg.label}
+    </span>
+  );
+}
 
 export default function SchedulePage() {
   const { data: session } = useSession();
@@ -57,10 +73,15 @@ export default function SchedulePage() {
 
   useEffect(() => {
     if (session) {
-      fetch("/api/posts")
+      fetch("/api/posts?pageSize=200")
         .then((r) => r.json())
-        .then((data) => {
-          const all = Array.isArray(data) ? data : [];
+        .then((data: unknown) => {
+          // API now returns paginated shape { data: Post[], total, ... }
+          const all: Post[] = Array.isArray(data)
+            ? (data as Post[])
+            : Array.isArray((data as { data?: Post[] }).data)
+            ? ((data as { data: Post[] }).data)
+            : [];
           setPosts(all);
           setDraftPosts(all.filter((p: Post) => p.status === "draft"));
         });
@@ -84,7 +105,7 @@ export default function SchedulePage() {
     setLoading(true);
     const [h, m] = scheduledTime.split(":").map(Number);
     const scheduledAt = new Date(selectedDate);
-    scheduledAt.setHours(h, m, 0, 0);
+    scheduledAt.setHours(h ?? 0, m ?? 0, 0, 0);
 
     const res = await fetch("/api/posts/schedule", {
       method: "POST",
@@ -93,8 +114,12 @@ export default function SchedulePage() {
     });
 
     if (res.ok) {
-      const updated = await fetch("/api/posts").then((r) => r.json());
-      const all = Array.isArray(updated) ? updated : [];
+      const updated = await fetch("/api/posts?pageSize=200").then((r) => r.json()) as unknown;
+      const all: Post[] = Array.isArray(updated)
+        ? (updated as Post[])
+        : Array.isArray((updated as { data?: Post[] }).data)
+        ? ((updated as { data: Post[] }).data)
+        : [];
       setPosts(all);
       setDraftPosts(all.filter((p: Post) => p.status === "draft"));
       setSelectedPost("");
@@ -245,11 +270,14 @@ export default function SchedulePage() {
                       className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     >
                       <option value="">Selecione um rascunho</option>
-                      {draftPosts.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          [{p.platform}] {p.content?.slice(0, 35) ?? "Sem texto"}...
-                        </option>
-                      ))}
+                      {draftPosts.map((p) => {
+                        const fmt = formatConfig[p.format ?? "post"] ?? formatConfig["post"]!;
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {fmt.emoji} {fmt.label} · [{p.platform}] {p.content?.slice(0, 30) ?? "Sem texto"}…
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -324,9 +352,12 @@ export default function SchedulePage() {
                         className="w-full text-left p-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <Badge variant="secondary" className={cn("text-xs", platformColors[p.platform])}>
-                            {p.platform}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="secondary" className={cn("text-xs", platformColors[p.platform])}>
+                              {p.platform}
+                            </Badge>
+                            <FormatBadge format={p.format} />
+                          </div>
                           <div className="flex items-center gap-1 text-xs text-gray-400">
                             <Clock className="h-3 w-3" />
                             {p.scheduledAt && new Date(p.scheduledAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
@@ -353,6 +384,7 @@ export default function SchedulePage() {
                 <Badge variant="secondary" className={cn(platformColors[detailPost.platform])}>
                   {detailPost.platform}
                 </Badge>
+                <FormatBadge format={detailPost.format} />
                 <Badge variant="warning">Agendado</Badge>
               </div>
               <button onClick={() => setDetailPost(null)} className="p-1.5 rounded-lg hover:bg-gray-100">

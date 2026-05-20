@@ -79,8 +79,13 @@ export default function PostsPage() {
     if (session) {
       fetch("/api/posts")
         .then((r) => r.json())
-        .then((data) => {
-          setPosts(Array.isArray(data) ? data : []);
+        .then((data: unknown) => {
+          const all: Post[] = Array.isArray(data)
+            ? (data as Post[])
+            : Array.isArray((data as { data?: Post[] }).data)
+            ? ((data as { data: Post[] }).data)
+            : [];
+          setPosts(all);
           setLoading(false);
         });
     }
@@ -267,7 +272,7 @@ export default function PostsPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {paginated.map((post) => {
-              const status = statusConfig[post.status] ?? statusConfig.draft;
+              const status = (statusConfig[post.status] ?? statusConfig["draft"])!;
               const platform = platformConfig[post.platform];
               const PlatformIcon = platform?.icon ?? Share2;
               const StatusIcon = status.icon;

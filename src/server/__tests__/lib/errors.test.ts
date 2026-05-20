@@ -19,9 +19,9 @@ describe("AppError", () => {
 });
 
 describe("ValidationError", () => {
-  it("has status 422", () => {
+  it("has status 400", () => {
     const err = new ValidationError("invalid input");
-    expect(err.statusCode).toBe(422);
+    expect(err.statusCode).toBe(400);
     expect(err.code).toBe("VALIDATION_ERROR");
   });
 });

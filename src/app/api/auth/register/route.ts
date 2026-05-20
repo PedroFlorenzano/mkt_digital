@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@server/lib/prisma";
+import { sendWelcomeEmail } from "@server/lib/email";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -9,6 +10,22 @@ export async function POST(request: Request) {
   if (!email || !password) {
     return NextResponse.json(
       { error: "Email e senha são obrigatórios" },
+      { status: 400 }
+    );
+  }
+
+  if (password.length < 6) {
+    return NextResponse.json(
+      { error: "A senha deve ter pelo menos 6 caracteres" },
+      { status: 400 }
+    );
+  }
+
+  // Basic email format check
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return NextResponse.json(
+      { error: "Formato de email inválido" },
       { status: 400 }
     );
   }
@@ -33,6 +50,10 @@ export async function POST(request: Request) {
       password: hashedPassword,
     },
   });
+
+  // Send welcome email (non-blocking — failure doesn't affect registration)
+  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3030";
+  void sendWelcomeEmail(user.email!, user.name, `${baseUrl}/login`).catch(() => {});
 
   return NextResponse.json({
     id: user.id,

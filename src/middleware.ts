@@ -7,7 +7,7 @@ import { getToken } from "next-auth/jwt";
  */
 function isPublicRoute(pathname: string): boolean {
   if (pathname === "/") return true;
-  const publicPrefixes = ["/login", "/register", "/company-selector"];
+  const publicPrefixes = ["/login", "/register", "/reset-password", "/company-selector"];
   return publicPrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
   );

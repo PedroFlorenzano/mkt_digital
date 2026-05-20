@@ -4,12 +4,14 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@client/components/ui/button";
 import { Input } from "@client/components/ui/input";
 import { Label } from "@client/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@client/components/ui/card";
 import { Logo } from "@client/components/ui/logo";
+
+const isDev = process.env.NODE_ENV === "development";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,7 +33,7 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError("Email ou senha incorretos.");
+      setError("Email ou senha incorretos. Verifique e tente novamente.");
       setLoading(false);
     } else {
       router.push("/dashboard");
@@ -41,7 +43,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="flex justify-center mb-8">
           <Logo size="md" />
         </div>
@@ -67,7 +68,15 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Senha</Label>
+                  <Link
+                    href="/reset-password"
+                    className="text-xs text-blue-600 hover:text-blue-700"
+                  >
+                    Esqueceu a senha?
+                  </Link>
+                </div>
                 <div className="relative">
                   <Input
                     id="password"
@@ -97,10 +106,7 @@ export default function LoginPage() {
 
               <Button type="submit" variant="gradient" size="lg" className="w-full" disabled={loading}>
                 {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Entrando...
-                  </>
+                  <><Loader2 className="h-4 w-4 animate-spin" />Entrando...</>
                 ) : (
                   "Entrar"
                 )}
@@ -114,9 +120,12 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <div className="mt-4 rounded-lg bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-gray-500 text-center">
-              Demo: <span className="font-mono font-medium">demo@mktdigital.com</span> / <span className="font-mono font-medium">demo123</span>
-            </div>
+            {/* Demo credentials — only shown in development */}
+            {isDev && (
+              <div className="mt-4 rounded-lg bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-gray-500 text-center">
+                Demo: <span className="font-mono font-medium">demo@mktdigital.com</span> / <span className="font-mono font-medium">demo123</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

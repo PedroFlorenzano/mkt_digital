@@ -500,7 +500,7 @@ export interface MarketingPostOptions {
  * Usa estimativa de largura por caractere baseada no tamanho da fonte.
  * Retorna no máximo `maxLines` linhas; a última é truncada com "…" se necessário.
  */
-function wrapTextPx(
+function _wrapTextPx(
   text: string,
   fontSizePx: number,
   maxWidthPx: number,
@@ -634,7 +634,7 @@ export async function composeMarketingPost(
       const joined = lines.join(" ");
       if (joined.length < text.replace(/\s+/g, " ").trim().length) {
         const last = lines[maxLines - 1];
-        lines[maxLines - 1] = last.slice(0, -1) + "…";
+        lines[maxLines - 1] = (last ?? "").slice(0, -1) + "…";
       }
     }
     return lines.slice(0, maxLines);

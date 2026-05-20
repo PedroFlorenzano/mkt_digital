@@ -17,10 +17,11 @@ export const GET = withErrorHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") ?? "1", 10);
   const pageSize = parseInt(searchParams.get("pageSize") ?? "20", 10);
+  const format = searchParams.get("format") ?? undefined;
 
   const company = await companyService.assertOwnership(userId, activeCompanyId);
-  const result = await postService.listByCompanyId(company.id, { page, pageSize });
-  return NextResponse.json(result.data);
+  const result = await postService.listByCompanyId(company.id, { page, pageSize, format });
+  return NextResponse.json(result);
 });
 
 export const POST = withErrorHandler(async (request: Request) => {
@@ -39,6 +40,7 @@ export const POST = withErrorHandler(async (request: Request) => {
     content: typeof body["content"] === "string" ? body["content"] : null,
     imageUrl: typeof body["imageUrl"] === "string" ? body["imageUrl"] : null,
     scheduledAt: typeof body["scheduledAt"] === "string" ? body["scheduledAt"] : null,
+    format: typeof body["format"] === "string" ? body["format"] : undefined,
     textVariants: Array.isArray(body["textVariants"])
       ? (body["textVariants"] as Array<{ title: string; content: string }>)
       : [],

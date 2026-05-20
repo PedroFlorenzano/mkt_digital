@@ -2,13 +2,17 @@
 
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { CheckCircle2, XCircle, Loader2, X, Info, AlertTriangle, Clock } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, X, Info, AlertTriangle, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { DashboardLayout } from "@client/components/layout/dashboard-layout";
 import { Button } from "@client/components/ui/button";
 import { Badge } from "@client/components/ui/badge";
 import { Card, CardContent } from "@client/components/ui/card";
 import { Input } from "@client/components/ui/input";
 import { Label } from "@client/components/ui/label";
+import { Separator } from "@client/components/ui/separator";
+import { BioGenerator } from "@client/components/BioGenerator";
+import { FeedGridPlanner } from "@client/components/FeedGridPlanner";
+import { ProfileAuditor } from "@client/components/ProfileAuditor";
 
 interface SocialAccount {
   id: string;
@@ -25,33 +29,96 @@ const PLATFORMS = [
     name: "Instagram",
     gradient: "from-purple-500 via-pink-500 to-orange-400",
     description: "Posts no feed, reels e stories",
-    hint: "Use o Meta Business Suite para gerar um Page Access Token com expiração longa (60 dias).",
-    /** Meta long-lived tokens last 60 days */
     tokenTtlDays: 60,
+    tokenLabel: "Page Access Token",
+    profileIdLabel: "ID do perfil Instagram",
+    profileIdPlaceholder: "Ex: 123456789012345",
+    steps: [
+      "Acesse business.facebook.com e vá em Configurações > Contas > Contas do Instagram",
+      "Vincule sua conta do Instagram à sua Página do Facebook",
+      "Em Meta for Developers, crie um app com produto Instagram Graph API",
+      "Solicite as permissões: instagram_basic, instagram_content_publish, pages_read_engagement",
+      "Gere um Page Access Token de longa duração (válido por 60 dias) via Graph API Explorer",
+      "O ID do perfil é o Instagram Account ID — obtenha com: GET /me?fields=instagram_business_account",
+    ],
+    warning: null,
   },
   {
     id: "facebook",
     name: "Facebook",
     gradient: "from-blue-700 to-blue-500",
     description: "Posts na página e grupos",
-    hint: "Registre um app no Meta for Developers e obtenha o Page Access Token.",
     tokenTtlDays: 60,
+    tokenLabel: "Page Access Token",
+    profileIdLabel: "ID da Página do Facebook",
+    profileIdPlaceholder: "Ex: 123456789012345",
+    steps: [
+      "Acesse Meta for Developers (developers.facebook.com) e crie um app",
+      "Adicione o produto Facebook Login e Pages API",
+      "Solicite as permissões: pages_manage_posts, pages_read_engagement",
+      "No Graph API Explorer, selecione sua Página e gere um Page Access Token",
+      "Converta para token de longa duração: GET /oauth/access_token?grant_type=fb_exchange_token",
+      "O ID da página está na URL da sua Página do Facebook ou em Configurações > Sobre",
+    ],
+    warning: null,
   },
   {
     id: "linkedin",
     name: "LinkedIn",
     gradient: "from-blue-800 to-blue-600",
     description: "Posts profissionais e artigos",
-    hint: "Registre um app no LinkedIn Developers e obtenha o OAuth 2.0 token (válido por 60 dias).",
     tokenTtlDays: 60,
+    tokenLabel: "OAuth 2.0 Access Token",
+    profileIdLabel: "URN do perfil (person ou organization)",
+    profileIdPlaceholder: "Ex: urn:li:person:ABC123 ou urn:li:organization:123",
+    steps: [
+      "Acesse developer.linkedin.com e crie um app na sua empresa",
+      "Solicite acesso ao produto Share on LinkedIn e Community Management API",
+      "Configure a URL de redirecionamento OAuth no app",
+      "Solicite as permissões (scopes): w_member_social, r_liteprofile",
+      "Implemente o fluxo OAuth 2.0 ou use o LinkedIn Token Generator para testes",
+      "Para obter o URN: GET https://api.linkedin.com/v2/userinfo com seu token",
+    ],
+    warning: "Tokens do LinkedIn expiram em 60 dias e não podem ser renovados automaticamente — é necessário refazer o fluxo OAuth.",
+  },
+  {
+    id: "tiktok",
+    name: "TikTok",
+    gradient: "from-gray-900 via-gray-800 to-gray-700",
+    description: "Vídeos e carrosséis de fotos",
+    tokenTtlDays: 30,
+    tokenLabel: "Access Token OAuth 2.0",
+    profileIdLabel: "Open ID do usuário TikTok",
+    profileIdPlaceholder: "Ex: _000abc123xyz",
+    steps: [
+      "Acesse developers.tiktok.com e crie uma conta de desenvolvedor",
+      "Crie um novo app e adicione o produto Content Posting API",
+      "Habilite a opção Direct Post nas configurações do produto",
+      "Solicite os escopos: video.publish, video.upload, user.info.basic",
+      "Submeta o app para revisão — o TikTok pode levar de 3 dias a 2 semanas para aprovar",
+      "Após aprovação, implemente o fluxo OAuth 2.0 para obter o Access Token do usuário",
+      "O Open ID é retornado durante o fluxo OAuth em /v2/oauth/token/",
+    ],
+    warning: "⚠️ Sem aprovação do TikTok, os posts são publicados em modo PRIVADO automaticamente. A revisão é obrigatória para publicar publicamente.",
   },
   {
     id: "whatsapp",
     name: "WhatsApp",
     gradient: "from-green-600 to-green-400",
-    description: "Status e mensagens broadcast",
-    hint: "Configure via WhatsApp Business API no Meta for Developers.",
+    description: "Mensagens broadcast (não Status)",
     tokenTtlDays: 60,
+    tokenLabel: "System User Access Token",
+    profileIdLabel: "Phone Number ID",
+    profileIdPlaceholder: "Ex: 123456789012345",
+    steps: [
+      "Acesse Meta for Developers e crie um app com produto WhatsApp Business",
+      "Configure um número de telefone para o WhatsApp Business API",
+      "Crie um System User em Configurações de Negócios > System Users",
+      "Gere um System User Access Token com a permissão whatsapp_business_messaging",
+      "O Phone Number ID está em WhatsApp > Getting Started no painel do app",
+      "Adicione destinatários ao modo Sandbox para testes antes de ir para produção",
+    ],
+    warning: "⚠️ A API do WhatsApp envia mensagens broadcast para contatos cadastrados. Não é possível publicar no Status do WhatsApp via API — apenas pelo app.",
   },
 ];
 
@@ -104,6 +171,11 @@ export default function SocialPage() {
   const [profileId, setProfileId] = useState("");
   const [profileName, setProfileName] = useState("");
   const [error, setError] = useState("");
+
+  // Instagram management collapsible sections
+  const [showBioGenerator, setShowBioGenerator] = useState(false);
+  const [showFeedPlanner, setShowFeedPlanner] = useState(false);
+  const [showProfileAuditor, setShowProfileAuditor] = useState(false);
 
   useEffect(() => {
     if (session) {
@@ -287,94 +359,206 @@ export default function SocialPage() {
         })}
       </div>
 
-      {/* Info box */}
+      {/* ── Instagram management tools ── */}
+      <Separator className="my-6" />
+
+      <div className="space-y-3 mb-8">
+        {/* Bio Generator */}
+        <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+            onClick={() => setShowBioGenerator((v) => !v)}
+          >
+            <span className="font-semibold text-gray-900 text-sm">Sugestão de Bio com IA</span>
+            {showBioGenerator ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+          </button>
+          {showBioGenerator && (
+            <div className="px-5 pb-5">
+              <BioGenerator />
+            </div>
+          )}
+        </div>
+
+        {/* Feed Grid Planner */}
+        <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+            onClick={() => setShowFeedPlanner((v) => !v)}
+          >
+            <span className="font-semibold text-gray-900 text-sm">Planejador de Feed 3×3</span>
+            {showFeedPlanner ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+          </button>
+          {showFeedPlanner && (
+            <div className="px-5 pb-5">
+              <FeedGridPlanner />
+            </div>
+          )}
+        </div>
+
+        {/* Profile Auditor */}
+        <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+            onClick={() => setShowProfileAuditor((v) => !v)}
+          >
+            <span className="font-semibold text-gray-900 text-sm">Auditoria de Perfil</span>
+            {showProfileAuditor ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+          </button>
+          {showProfileAuditor && (
+            <div className="px-5 pb-5">
+              <ProfileAuditor />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Info box — pré-requisitos por plataforma */}
       <Card className="border-blue-100 bg-blue-50/50">
         <CardContent className="p-5">
           <div className="flex gap-3">
             <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-blue-900 mb-2">Como obter os tokens de acesso?</p>
-              <div className="space-y-1.5">
+            <div className="w-full">
+              <p className="text-sm font-medium text-blue-900 mb-4">
+                Como obter as credenciais de cada plataforma
+              </p>
+              <div className="space-y-5">
                 {PLATFORMS.map((p) => (
-                  <p key={p.id} className="text-xs text-blue-700">
-                    <span className="font-medium">{p.name}:</span> {p.hint}
-                  </p>
+                  <div key={p.id}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br ${p.gradient} text-white text-xs font-bold shrink-0`}>
+                        {p.name[0]}
+                      </div>
+                      <p className="text-xs font-semibold text-gray-800">{p.name}</p>
+                      <span className="text-xs text-gray-400">— token expira em ~{p.tokenTtlDays} dias</span>
+                    </div>
+                    <ol className="space-y-1 pl-4">
+                      {p.steps.map((step, i) => (
+                        <li key={i} className="text-xs text-blue-700 flex gap-2">
+                          <span className="text-blue-400 shrink-0 font-medium">{i + 1}.</span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    {p.warning && (
+                      <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                        {p.warning}
+                      </p>
+                    )}
+                  </div>
                 ))}
               </div>
-              <p className="mt-3 text-xs text-blue-600 font-medium">
-                ⚠️ Tokens expiram em ~60 dias. Renove antes de vencer para não interromper a publicação automática.
-              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Connect / Renew modal */}
-      {modal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeModal}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {accounts.find((a) => a.platform === modal && a.connected)
-                  ? `Renovar token — ${PLATFORMS.find((p) => p.id === modal)?.name}`
-                  : `Conectar ${PLATFORMS.find((p) => p.id === modal)?.name}`}
-              </h3>
-              <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100">
-                <X className="h-4 w-4 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="space-y-1.5">
-                <Label>Access Token *</Label>
-                <Input
-                  type="password"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="Cole seu token de acesso aqui"
-                />
+      {modal && (() => {
+        const platformConfig = PLATFORMS.find((p) => p.id === modal);
+        const isRenewing = accounts.find((a) => a.platform === modal && a.connected);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeModal}>
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isRenewing
+                    ? `Renovar token — ${platformConfig?.name}`
+                    : `Conectar ${platformConfig?.name}`}
+                </h3>
+                <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100">
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
               </div>
 
-              <div className="space-y-1.5">
-                <Label>ID do Perfil / Página *</Label>
-                <Input
-                  value={profileId}
-                  onChange={(e) => setProfileId(e.target.value)}
-                  placeholder="Ex: 123456789"
-                />
-              </div>
+              <div className="p-6 space-y-4">
+                {/* Platform warning */}
+                {platformConfig?.warning && (
+                  <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 leading-relaxed">{platformConfig.warning}</p>
+                  </div>
+                )}
 
-              <div className="space-y-1.5">
-                <Label>Nome do perfil (opcional)</Label>
-                <Input
-                  value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  placeholder="@meuperfil"
-                />
-              </div>
+                {/* Steps accordion */}
+                {platformConfig?.steps && (
+                  <details className="group rounded-lg border border-gray-200 overflow-hidden">
+                    <summary className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 text-sm font-medium text-gray-700 list-none">
+                      <span className="flex items-center gap-2">
+                        <Info className="h-4 w-4 text-blue-500" />
+                        Como obter as credenciais do {platformConfig.name}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-gray-400 group-open:rotate-180 transition-transform" />
+                    </summary>
+                    <div className="px-4 pb-4 pt-1 border-t border-gray-100">
+                      <ol className="space-y-2">
+                        {platformConfig.steps.map((step, i) => (
+                          <li key={i} className="text-xs text-gray-600 flex gap-2.5">
+                            <span className="flex-shrink-0 h-5 w-5 rounded-full bg-blue-100 text-blue-700 font-semibold flex items-center justify-center text-xs">
+                              {i + 1}
+                            </span>
+                            <span className="leading-relaxed">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </details>
+                )}
 
-              {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
-                  <XCircle className="h-4 w-4 shrink-0" />
-                  {error}
+                {/* Form fields */}
+                <div className="space-y-1.5">
+                  <Label>{platformConfig?.tokenLabel ?? "Access Token"} *</Label>
+                  <Input
+                    type="password"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="Cole seu token de acesso aqui"
+                  />
                 </div>
-              )}
 
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1" onClick={closeModal}>Cancelar</Button>
-                <Button
-                  variant="gradient"
-                  className="flex-1"
-                  onClick={() => connect(modal)}
-                  disabled={!token || !profileId || connecting === modal}
-                >
-                  {connecting === modal ? <><Loader2 className="h-4 w-4 animate-spin" />Conectando...</> : "Conectar"}
-                </Button>
+                <div className="space-y-1.5">
+                  <Label>{platformConfig?.profileIdLabel ?? "ID do Perfil"} *</Label>
+                  <Input
+                    value={profileId}
+                    onChange={(e) => setProfileId(e.target.value)}
+                    placeholder={platformConfig?.profileIdPlaceholder ?? "Ex: 123456789"}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Nome do perfil (opcional)</Label>
+                  <Input
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder="@meuperfil"
+                  />
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
+                    <XCircle className="h-4 w-4 shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={closeModal}>Cancelar</Button>
+                  <Button
+                    variant="gradient"
+                    className="flex-1"
+                    onClick={() => connect(modal)}
+                    disabled={!token || !profileId || connecting === modal}
+                  >
+                    {connecting === modal ? <><Loader2 className="h-4 w-4 animate-spin" />Conectando...</> : "Conectar"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </DashboardLayout>
   );
 }

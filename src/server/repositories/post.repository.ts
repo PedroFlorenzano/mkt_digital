@@ -10,6 +10,7 @@ export interface CreatePostData {
   imageUrl?: string | null;
   status?: string;
   scheduledAt?: Date | null;
+  format?: string;
   variants?: Array<{
     type: string;
     content?: string | null;
@@ -21,10 +22,13 @@ export interface CreatePostData {
 export const postRepository = {
   findByCompanyId(
     companyId: string,
-    options: { take?: number; skip?: number } = {},
+    options: { take?: number; skip?: number; format?: string } = {},
   ): Promise<Post[]> {
     return prisma.post.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(options.format !== undefined ? { format: options.format } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: options.take ?? 50,
       skip: options.skip ?? 0,
@@ -86,7 +90,12 @@ export const postRepository = {
     return prisma.post.delete({ where: { id } });
   },
 
-  countByCompanyId(companyId: string): Promise<number> {
-    return prisma.post.count({ where: { companyId } });
+  countByCompanyId(companyId: string, options: { format?: string } = {}): Promise<number> {
+    return prisma.post.count({
+      where: {
+        companyId,
+        ...(options.format !== undefined ? { format: options.format } : {}),
+      },
+    });
   },
 };

@@ -9,7 +9,7 @@
 import { prisma } from "@server/lib/prisma";
 import { generateTextWithBedrock } from "@server/lib/bedrock";
 import { deleteVideoArtifacts, buildJobS3Prefix } from "@server/lib/s3-video";
-import { deserializeBrief, serializeBrief, validateBrief } from "@server/lib/video-brief";
+import { serializeBrief } from "@server/lib/video-brief";
 import { uploadVideoArtifact } from "@server/lib/s3-video";
 import { extractFrames } from "@server/services/frame-extractor.service";
 import { transformFrames } from "@server/services/frame-transformer.service";

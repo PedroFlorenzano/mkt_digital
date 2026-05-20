@@ -17,7 +17,6 @@ export interface EncryptedBlob {
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;   // bytes
-const KEY_LENGTH = 32;  // bytes (256-bit)
 const TAG_LENGTH = 16;  // bytes
 
 // ---------------------------------------------------------------------------

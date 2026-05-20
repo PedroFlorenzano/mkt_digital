@@ -380,7 +380,7 @@ export const googleAdsConnector = {
     draft: CampaignDraft,
   ): Promise<GoogleCampaignResult> {
     // Validate credentials are present (will throw if missing)
-    const { developerToken, clientId, clientSecret, refreshToken, customerId } =
+    const { developerToken, clientSecret, refreshToken, customerId } =
       extractGoogleCreds(creds);
 
     const cleanCustomerId = customerId.replace(/-/g, "");

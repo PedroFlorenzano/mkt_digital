@@ -5,6 +5,7 @@ import { companyService } from "@server/services/company.service";
 import { generateImageWithBedrock } from "@server/lib/bedrock";
 import { composeMarketingPost, applyLayoutTemplate, bufferToDataUrl } from "@server/lib/image-compose";
 import { translateToImagePrompt, buildFallbackPrompt } from "@server/services/promptTranslator";
+import { buildBrandPrompt, parseColors, BrandContext } from "@server/services/variation.service";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";
@@ -128,6 +129,15 @@ export async function POST(request: Request) {
   if (style) {
     imagePrompt = `${imagePrompt} Visual style: ${style}.`;
   }
+
+  // Enrich the prompt with the company's brand context
+  const brandContext: BrandContext = {
+    colors: parseColors(company.colors),
+    tone: company.tone || "professional",
+    sector: company.sector || "",
+    objective: company.objective ?? undefined,
+  };
+  imagePrompt = buildBrandPrompt(imagePrompt, brandContext);
 
   try {
     const result = await generateImageWithBedrock(company.id, imagePrompt, 3);

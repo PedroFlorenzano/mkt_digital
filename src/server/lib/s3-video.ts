@@ -24,7 +24,6 @@ import {
   writeLocalArtifact,
   readLocalArtifact,
   deleteLocalArtifacts,
-  buildLocalJobKey,
 } from "@server/lib/local-storage";
 
 // ---------------------------------------------------------------------------

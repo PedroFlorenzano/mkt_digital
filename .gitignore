@@ -43,6 +43,12 @@ prisma/dev.db-journal
 # vercel
 .vercel
 
+# uploaded videos and processed frames (runtime artifacts)
+/public/uploads/videos/
+/public/uploads/frames/
+/public/uploads/jobs/
+/public/videos/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

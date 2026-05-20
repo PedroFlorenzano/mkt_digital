@@ -73,6 +73,7 @@ export async function generateTextWithBedrock(
   companyId: string,
   systemPrompt: string,
   userMessage: string,
+  maxTokens: number = 2000,
 ): Promise<TextGenerationResult> {
   const client = getTextClient();
   const modelsToTry = [TEXT_MODEL_PRIMARY, TEXT_MODEL_FALLBACK];
@@ -82,7 +83,7 @@ export async function generateTextWithBedrock(
     try {
       const body = JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 2000,
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],
       });
@@ -158,6 +159,7 @@ export interface ImageGenerationResult {
     imagesGenerated: number;
     costUsd: number;
     model: string;
+    aspectRatio: string;
   };
 }
 
@@ -165,6 +167,7 @@ export async function generateImageWithBedrock(
   companyId: string,
   prompt: string,
   count: number = 3,
+  aspectRatio: string = "1:1",
 ): Promise<ImageGenerationResult> {
   const client = getImageClient();
   const images: string[] = [];
@@ -190,7 +193,7 @@ export async function generateImageWithBedrock(
             "title, subtitle, font, writing, inscription, sign, banner, overlay, " +
             "blurry, low quality, distorted, deformed",
           output_format: "png",
-          aspect_ratio: "1:1",
+          aspect_ratio: aspectRatio,
         });
 
         const command = new InvokeModelCommand({
@@ -243,7 +246,7 @@ export async function generateImageWithBedrock(
 
   return {
     images,
-    usage: { imagesGenerated: images.length, costUsd, model: IMAGE_MODEL },
+    usage: { imagesGenerated: images.length, costUsd, model: IMAGE_MODEL, aspectRatio },
   };
 }
 

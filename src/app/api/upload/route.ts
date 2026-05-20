@@ -6,8 +6,10 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 
 const UPLOAD_DIR = join(process.cwd(), "public", "uploads");
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/mov", "video/quicktime", "video/webm"];
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -31,16 +33,24 @@ export async function POST(request: Request) {
   const uploaded: { url: string; name: string }[] = [];
 
   for (const file of files) {
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
+    const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+
+    if (!isImage && !isVideo) {
       return NextResponse.json(
-        { error: `Tipo não suportado: ${file.type}. Use PNG, JPG, WebP ou GIF.` },
+        {
+          error: `Tipo não suportado: ${file.type}. Tipos aceitos: imagens (PNG, JPG, WebP, GIF) ou vídeos (MP4, MOV, WebM).`,
+        },
         { status: 400 }
       );
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    const maxSize = isVideo ? MAX_VIDEO_FILE_SIZE : MAX_IMAGE_FILE_SIZE;
+    const maxSizeLabel = isVideo ? "500MB" : "10MB";
+
+    if (file.size > maxSize) {
       return NextResponse.json(
-        { error: `Arquivo ${file.name} excede 10MB` },
+        { error: `Arquivo ${file.name} excede ${maxSizeLabel}` },
         { status: 400 }
       );
     }

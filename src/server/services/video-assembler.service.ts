@@ -178,7 +178,7 @@ async function assembleFromAIFrames(
       : `${xBase}+${driftPx}-(on/${framesPerClip})*${driftPx}`;
     const yExpr = `ih/2-(ih/zoom/2)`;
 
-    const fadeInFrames  = Math.round(FADE_SEC * FPS);
+    const _fadeInFrames  = Math.round(FADE_SEC * FPS);
 
     await new Promise<void>((resolve, reject) => {
       ffmpeg(framePath)
@@ -519,7 +519,7 @@ function buildOverlayFilter(
 
 function getVideoDuration(filePath: string): Promise<number> {
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
+    ffmpeg.ffprobe(filePath, (err: Error | null, metadata: ffmpeg.FfprobeData) => {
       if (err) return reject(err);
       resolve(metadata.format.duration ?? 0);
     });

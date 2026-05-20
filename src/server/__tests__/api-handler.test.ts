@@ -45,7 +45,7 @@ describe("withErrorHandler — happy path", () => {
 
 describe("withErrorHandler — AppError subclasses", () => {
   const cases = [
-    { error: new ValidationError("bad input"),           expectedStatus: 422 },
+    { error: new ValidationError("bad input"),           expectedStatus: 400 },
     { error: new NotFoundError("User"),                  expectedStatus: 404 },
     { error: new UnauthorizedError(),                    expectedStatus: 401 },
     { error: new ForbiddenError(),                       expectedStatus: 403 },

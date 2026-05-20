@@ -4,7 +4,7 @@ import { NotFoundError, ForbiddenError, ValidationError } from "@server/lib/erro
 import { logger } from "@server/lib/logger";
 import type { Post } from "@prisma/client";
 
-const VALID_PLATFORMS = ["instagram", "facebook", "linkedin", "whatsapp"] as const;
+const VALID_PLATFORMS = ["instagram", "facebook", "linkedin", "whatsapp", "tiktok", "youtube"] as const;
 type Platform = (typeof VALID_PLATFORMS)[number];
 
 function isValidPlatform(p: string): p is Platform {
@@ -16,6 +16,7 @@ type PostInput = {
   content?: string | null;
   imageUrl?: string | null;
   scheduledAt?: string | null;
+  format?: string;
   textVariants?: Array<{ title: string; content: string }>;
   imageVariants?: string[];
   selectedTextIndex?: number | null;
@@ -50,15 +51,15 @@ export const postService = {
 
   async listByCompanyId(
     companyId: string,
-    options: { page?: number; pageSize?: number } = {},
+    options: { page?: number; pageSize?: number; format?: string } = {},
   ): Promise<{ data: Post[]; total: number; page: number; pageSize: number; hasNextPage: boolean }> {
     const page = Math.max(1, options.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
     const [data, total] = await Promise.all([
-      postRepository.findByCompanyId(companyId, { take: pageSize, skip }),
-      postRepository.countByCompanyId(companyId),
+      postRepository.findByCompanyId(companyId, { take: pageSize, skip, format: options.format }),
+      postRepository.countByCompanyId(companyId, { format: options.format }),
     ]);
 
     return { data, total, page, pageSize, hasNextPage: skip + data.length < total };
@@ -71,13 +72,30 @@ export const postService = {
     if (!isValidPlatform(input.platform)) {
       throw new ValidationError(`Invalid platform. Use: ${VALID_PLATFORMS.join(", ")}`);
     }
-    if (!input.content && !input.imageUrl) {
+
+    // Reel-specific validations
+    if (input.format === "reel") {
+      if (!input.imageUrl || input.imageUrl.trim() === "") {
+        throw new ValidationError("imageUrl is required for reels");
+      }
+      if (!input.content || input.content.trim() === "") {
+        throw new ValidationError("content is required for reels");
+      }
+    } else if (!input.content && !input.imageUrl) {
       throw new ValidationError("Post must have content or an image");
     }
 
-    const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
-    if (scheduledAt && isNaN(scheduledAt.getTime())) {
-      throw new ValidationError("Invalid scheduledAt date");
+    // scheduledAt validation: reject invalid ISO strings
+    let scheduledAt: Date | null = null;
+    if (input.scheduledAt != null) {
+      const parsed = new Date(input.scheduledAt);
+      if (isNaN(parsed.getTime())) {
+        throw new ValidationError("Invalid scheduledAt date");
+      }
+      // If in the past, treat as draft (scheduledAt = null)
+      if (parsed.getTime() > Date.now()) {
+        scheduledAt = parsed;
+      }
     }
 
     const post = await postRepository.create({
@@ -87,6 +105,7 @@ export const postService = {
       imageUrl: input.imageUrl ?? null,
       status: scheduledAt ? "scheduled" : "draft",
       scheduledAt,
+      format: input.format,
       variants: buildVariants(input),
     });
 

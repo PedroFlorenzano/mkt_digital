@@ -11,7 +11,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@server/lib/auth";
-import { UnauthorizedError } from "@server/lib/errors";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";
