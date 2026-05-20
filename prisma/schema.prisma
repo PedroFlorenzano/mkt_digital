@@ -109,6 +109,9 @@ model Company {
   campaignAuditLogs CampaignAuditLog[]
   videoJobs         VideoJob[]
   videoCredits      VideoCredit[]
+  whatsAppAgents    WhatsAppAgent[]
+  knowledgeBases    KnowledgeBase[]
+  kbAgents          KBAgent[]
 
   @@index([userId])
 }
@@ -526,4 +529,133 @@ model VideoCredit {
 
   @@unique([companyId, billingPeriodStart])
   @@index([companyId])
+}
+
+// ─────────────────────────────────────────────
+// Módulo: Agente IA WhatsApp
+// ─────────────────────────────────────────────
+
+model WhatsAppAgent {
+  id                    String   @id @default(cuid())
+  companyId             String
+  name                  String   // max 100 chars
+  description           String?
+  instanceName          String   // unique per company
+  evolutionApiUrl       String
+  evolutionApiKey       String   // plain text; field prepared for future encryption
+  systemPrompt          String   // 10–5000 chars
+  delaySeconds          Int      @default(3)
+  maxMessagesPerSession Int      @default(50)
+  status                String   @default("active") // "active" | "paused"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  messages WhatsAppMessage[]
+
+  @@unique([companyId, instanceName])
+  @@index([companyId])
+}
+
+model WhatsAppMessage {
+  id          String   @id @default(cuid())
+  agentId     String
+  remoteJid   String   // e.g. 5511999999999@s.whatsapp.net
+  contactName String?
+  role        String   // "user" | "assistant"
+  content     String
+  createdAt   DateTime @default(now())
+
+  agent WhatsAppAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([agentId, remoteJid])
+  @@index([agentId, remoteJid, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// Módulo: Knowledge Base Agent
+// ─────────────────────────────────────────────
+
+model KnowledgeBase {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  description String?
+  catalogType String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fields        CatalogField[]
+  records       CatalogRecord[]
+  agent         KBAgent?
+
+  @@index([companyId])
+}
+
+model CatalogField {
+  id              String   @id @default(cuid())
+  knowledgeBaseId String
+  name            String
+  dataType        String
+  isFilterable    Boolean  @default(false)
+  displayOrder    Int      @default(0)
+
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@unique([knowledgeBaseId, name])
+}
+
+model CatalogRecord {
+  id              String   @id @default(cuid())
+  knowledgeBaseId String
+  data            String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId])
+}
+
+model KBAgent {
+  id                String   @id @default(cuid())
+  knowledgeBaseId   String   @unique
+  companyId         String
+  name              String
+  instanceName      String
+  evolutionApiUrl   String
+  evolutionApiKey   String
+  systemPrompt      String
+  delaySeconds      Int      @default(3)
+  maxMessagesPerDay Int      @default(50)
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  messages      KBMessage[]
+
+  @@unique([companyId, instanceName])
+  @@index([companyId])
+  @@index([knowledgeBaseId])
+}
+
+model KBMessage {
+  id          String   @id @default(cuid())
+  agentId     String
+  remoteJid   String
+  contactName String?
+  role        String
+  content     String
+  messageType String
+  createdAt   DateTime @default(now())
+
+  agent KBAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([agentId, remoteJid])
+  @@index([agentId, remoteJid, createdAt])
 }

@@ -48,6 +48,23 @@ function makeImageLog(overrides: Partial<CostLog> = {}): CostLog {
   };
 }
 
+function makeWhatsappAgentLog(overrides: Partial<CostLog> = {}): CostLog {
+  return {
+    id: "log_03",
+    companyId: "cmp_01",
+    videoJobId: null,
+    type: "whatsapp_agent",
+    model: "us.anthropic.claude-sonnet-4-6",
+    inputTokens: 500,
+    outputTokens: 200,
+    images: 0,
+    costUsd: 0.0055,
+    metadata: null,
+    createdAt: new Date("2026-05-01T11:00:00Z"),
+    ...overrides,
+  };
+}
+
 afterEach(() => jest.clearAllMocks());
 
 describe("costService.getByCompanyId", () => {
@@ -99,5 +116,46 @@ describe("costService.getByCompanyId", () => {
     const { logs: returned } = await costService.getByCompanyId("cmp_01", "month");
     // Logs are returned as-is from the repository (ordering is repository's responsibility)
     expect(returned).toHaveLength(2);
+  });
+
+  // Requirements 5.1, 5.2, 5.3 — whatsapp_agent cost integration
+  it("includes whatsapp_agent logs in the returned logs array", async () => {
+    const waLog = makeWhatsappAgentLog();
+    repo.findByCompanyId.mockResolvedValue([makeTextLog(), makeImageLog(), waLog]);
+
+    const { logs: returned } = await costService.getByCompanyId("cmp_01", "month");
+
+    const waLogs = returned.filter((l) => l.type === "whatsapp_agent");
+    expect(waLogs).toHaveLength(1);
+    expect(waLogs[0].companyId).toBe("cmp_01");
+    expect(waLogs[0].type).toBe("whatsapp_agent");
+    expect(waLogs[0].costUsd).toBeCloseTo(0.0055);
+  });
+
+  it("includes whatsapp_agent cost in totalCost summary", async () => {
+    repo.findByCompanyId.mockResolvedValue([makeTextLog(), makeWhatsappAgentLog()]);
+
+    const { summary } = await costService.getByCompanyId("cmp_01", "month");
+
+    // Both text (0.0075) and whatsapp_agent (0.0055) costs should be included in totalCost
+    expect(summary.totalCost).toBeCloseTo(0.013);
+  });
+
+  it("repository query does not filter by type — all types returned for companyId", async () => {
+    const allTypesMixed = [
+      makeTextLog({ id: "t1" }),
+      makeImageLog({ id: "i1" }),
+      makeWhatsappAgentLog({ id: "wa1" }),
+      makeWhatsappAgentLog({ id: "wa2", costUsd: 0.003 }),
+    ];
+    repo.findByCompanyId.mockResolvedValue(allTypesMixed);
+
+    const { logs: returned } = await costService.getByCompanyId("cmp_01", "month");
+
+    expect(returned).toHaveLength(4);
+    const types = returned.map((l) => l.type);
+    expect(types).toContain("text");
+    expect(types).toContain("image");
+    expect(types).toContain("whatsapp_agent");
   });
 });

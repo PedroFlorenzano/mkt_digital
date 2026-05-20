@@ -12,6 +12,8 @@ import {
   DollarSign,
   TrendingUp,
   Video,
+  MessageCircle,
+  BookOpen,
   Settings,
   LogOut,
   ChevronRight,
@@ -32,6 +34,8 @@ const navItems = [
   { href: "/costs", label: "Custos de IA", icon: DollarSign },
   { href: "/paid-traffic", label: "Tráfego Pago", icon: TrendingUp },
   { href: "/video", label: "Vídeos com IA", icon: Video },
+  { href: "/whatsapp-agent", label: "Agente WhatsApp", icon: MessageCircle },
+  { href: "/knowledge-base", label: "Base de Conhecimento", icon: BookOpen },
 ];
 
 // ─── Deterministic avatar color from company name ────────────────────────────

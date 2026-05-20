@@ -250,6 +250,98 @@ export async function generateImageWithBedrock(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Multi-turn conversation (used by Webhook Handler)
+// ---------------------------------------------------------------------------
+
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ConversationResult {
+  text: string;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    model: string;
+  };
+}
+
+/**
+ * Invokes Bedrock with a multi-turn conversation history.
+ * Used by the WhatsApp webhook handler.
+ *
+ * @param systemPrompt  Already-substituted system prompt (variables replaced by caller)
+ * @param messages      Full conversation history including the new user message
+ * @param maxTokens     Max output tokens (default 2000)
+ * @returns             The raw text response from the model + usage info
+ * @throws              Rethrows any Bedrock error — caller is responsible for catching
+ */
+export async function invokeConversationWithBedrock(
+  systemPrompt: string,
+  messages: ConversationMessage[],
+  maxTokens = 2000,
+): Promise<ConversationResult> {
+  const client = getTextClient();
+  const modelsToTry = [TEXT_MODEL_PRIMARY, TEXT_MODEL_FALLBACK];
+  let lastError: Error | null = null;
+
+  for (const modelId of modelsToTry) {
+    try {
+      const body = JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      });
+
+      const command = new InvokeModelCommand({
+        modelId,
+        contentType: "application/json",
+        accept: "application/json",
+        body: Buffer.from(body),
+      });
+
+      const response = await client.send(command);
+      const result = JSON.parse(new TextDecoder().decode(response.body)) as {
+        content?: { type: string; text: string }[];
+        usage?: { input_tokens?: number; output_tokens?: number };
+      };
+
+      const text = result.content?.find((c) => c.type === "text")?.text ?? "";
+      const inputTokens = result.usage?.input_tokens ?? 0;
+      const outputTokens = result.usage?.output_tokens ?? 0;
+      const pricing = TEXT_PRICING[modelId] ?? TEXT_PRICING[TEXT_MODEL_FALLBACK]!;
+      const costUsd =
+        (inputTokens / 1000) * pricing.inputPer1k +
+        (outputTokens / 1000) * pricing.outputPer1k;
+
+      console.log(`[bedrock/conversation] Model used: ${modelId}`);
+      return { text, usage: { inputTokens, outputTokens, costUsd, model: modelId } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const isUseCaseError =
+        message.includes("use case") ||
+        message.includes("Model use case") ||
+        message.includes("AccessDeniedException");
+
+      if (isUseCaseError && modelId === TEXT_MODEL_PRIMARY) {
+        console.warn(
+          `[bedrock/conversation] ${modelId} blocked (use case), trying fallback: ${TEXT_MODEL_FALLBACK}`,
+        );
+        lastError = err instanceof Error ? err : new Error(message);
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw lastError ?? new Error("All conversation models failed");
+}
+
 /**
  * Image-to-image: applies professional style to a source image while
  * preserving the subject (product, person, scene). The `strength` parameter
