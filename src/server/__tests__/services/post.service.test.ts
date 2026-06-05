@@ -25,6 +25,7 @@ const mockCompany = {
   tone: "professional",
   logoUrl: null,
   colors: null,
+  driveUrl: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

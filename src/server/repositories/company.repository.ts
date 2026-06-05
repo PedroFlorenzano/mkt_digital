@@ -137,6 +137,13 @@ export const companyRepository = {
     });
   },
 
+  findByIdForPrompt(companyId: string) {
+    return prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, name: true, sector: true, objective: true, tone: true, colors: true },
+    });
+  },
+
   /**
    * Atomically deletes a company and all cascading child records in a single
    * Prisma interactive transaction. If any deletion fails the entire transaction

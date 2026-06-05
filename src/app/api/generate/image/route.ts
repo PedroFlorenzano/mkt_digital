@@ -4,7 +4,7 @@ import { authOptions } from "@server/lib/auth";
 import { companyService } from "@server/services/company.service";
 import { generateImageWithBedrock } from "@server/lib/bedrock";
 import { composeMarketingPost, applyLayoutTemplate, bufferToDataUrl } from "@server/lib/image-compose";
-import { translateToImagePrompt, buildFallbackPrompt } from "@server/services/promptTranslator";
+import { translateToImagePrompt, buildFallbackPrompt } from "@server/services/promptTranslator.service";
 import { buildBrandPrompt, parseColors, BrandContext } from "@server/services/variation.service";
 import * as path from "node:path";
 import * as fs from "node:fs";

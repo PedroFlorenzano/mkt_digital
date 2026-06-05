@@ -1,4 +1,4 @@
-import { prisma } from "@server/lib/prisma";
+import { companyRepository } from "@server/repositories/company.repository";
 import { generateTextWithBedrock } from "@server/lib/bedrock";
 import { ValidationError, NotFoundError } from "@server/lib/errors";
 import { logger } from "@server/lib/logger";
@@ -136,11 +136,8 @@ export async function auditProfile(
     );
   }
 
-  // ── Step 2: Load company from Prisma ─────────────────────────────────────
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { id: true, objective: true, tone: true, sector: true },
-  });
+  // ── Step 2: Load company ──────────────────────────────────────────────────
+  const company = await companyRepository.findByIdForPrompt(companyId);
 
   if (!company) {
     throw new NotFoundError("Company");

@@ -28,6 +28,9 @@ src/
 └── server/                 # BACK — lógica de negócio
     ├── lib/                # Utilitários (auth, bedrock, logger, prisma...)
     ├── services/           # Regras de negócio
+    │   ├── campaign/       # Sub-módulos (generation, launch, reporting, query)
+    │   ├── ab-test/        # Sub-módulos (analysis, executor, crud, prompts)
+    │   └── automation-rules/ # Sub-módulos (engine, executor)
     ├── repositories/       # Acesso ao banco de dados
     └── __tests__/          # Testes unitários
 ```
@@ -120,6 +123,23 @@ ada credentials update --profile=mktai --account=124355648474 --role=Admin --onc
 - ✅ Conexão com redes sociais (Instagram, Facebook, LinkedIn, WhatsApp)
 - ✅ Publicação automática via cron job
 - ✅ Dashboard de custos de IA
+- ✅ Drive compartilhado por cliente (link + botão de acesso direto)
+
+## Qualidade do Código
+
+| Métrica | Valor |
+|---------|-------|
+| Testes | 503 (32 suites) |
+| Cobertura (statements) | 86% |
+| Cobertura (branches) | 70% |
+| Cobertura (functions) | 93% |
+| Erros TypeScript | 0 |
+
+### Arquitetura
+
+- **Services decompostos** em sub-módulos por responsabilidade: `campaign/`, `ab-test/`, `automation-rules/`
+- **Repository pattern** aplicado nos services core (credential, boost, bio, profile-auditor, feed-grid)
+- **Facades** mantêm compatibilidade com imports existentes
 
 ## Roadmap
 
@@ -129,3 +149,5 @@ ada credentials update --profile=mktai --account=124355648474 --role=Admin --onc
 - [ ] Geração de vídeo (HeyGen/Runway)
 - [ ] Dashboard de métricas das redes sociais
 - [ ] Rate limiting com Redis
+- [ ] Decomposição de video-job.service.ts e video-assembler.service.ts
+- [ ] Refatoração de páginas monolíticas (create-post, social, costs)

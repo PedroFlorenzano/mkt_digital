@@ -1,4 +1,4 @@
-import { prisma } from "@server/lib/prisma";
+import { companyRepository } from "@server/repositories/company.repository";
 import { generateTextWithBedrock } from "@server/lib/bedrock";
 import { NotFoundError, ValidationError } from "@server/lib/errors";
 import { logger } from "@server/lib/logger";
@@ -51,10 +51,7 @@ export async function generateBioSuggestions(
   companyId: string,
 ): Promise<BioSuggestion[]> {
   // ── 1. Load company ──────────────────────────────────────────────────────
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { name: true, sector: true, objective: true, tone: true },
-  });
+  const company = await companyRepository.findByIdForPrompt(companyId);
 
   if (!company) {
     throw new NotFoundError("Company");

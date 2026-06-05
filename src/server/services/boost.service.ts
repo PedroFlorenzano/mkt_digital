@@ -14,10 +14,13 @@
  * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8
  */
 
-import { prisma } from "@server/lib/prisma";
 import { generateTextWithBedrock } from "@server/lib/bedrock";
 import { ExternalServiceError, NotFoundError, ValidationError } from "@server/lib/errors";
 import { logger } from "@server/lib/logger";
+import { companyRepository } from "@server/repositories/company.repository";
+import { postRepository } from "@server/repositories/post.repository";
+import { credentialRepository } from "@server/repositories/credential.repository";
+import { boostRepository } from "@server/repositories/boost.repository";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -140,35 +143,14 @@ export const boostService = {
    */
   async analyzePost(companyId: string, postId: string): Promise<BoostSuggestion> {
     // 1. Load company
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        id: true,
-        name: true,
-        sector: true,
-        objective: true,
-        tone: true,
-        colors: true,
-      },
-    });
+    const company = await companyRepository.findByIdForPrompt(companyId);
 
     if (!company) {
       throw new NotFoundError(`Empresa com id '${companyId}'`);
     }
 
     // 2. Load post
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      select: {
-        id: true,
-        companyId: true,
-        content: true,
-        imageUrl: true,
-        platform: true,
-        format: true,
-        status: true,
-      },
-    });
+    const post = await postRepository.findById(postId);
 
     if (!post) {
       throw new NotFoundError(`Post com id '${postId}'`);
@@ -257,10 +239,7 @@ export const boostService = {
     }
 
     // 8. Persist suggestion to post.boostSuggestionJson
-    await prisma.post.update({
-      where: { id: postId },
-      data: { boostSuggestionJson: JSON.stringify(suggestion) },
-    });
+    await postRepository.updateBoostSuggestion(postId, JSON.stringify(suggestion));
 
     logger.info("[boost] analyzePost — suggestion saved", {
       companyId,
@@ -298,25 +277,14 @@ export const boostService = {
     userId: string,
   ): Promise<void> {
     // 1. Load company
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: { id: true, name: true },
-    });
+    const company = await companyRepository.findById(companyId);
 
     if (!company) {
       throw new NotFoundError(`Empresa com id '${companyId}'`);
     }
 
     // Load post
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      select: {
-        id: true,
-        companyId: true,
-        platform: true,
-        status: true,
-      },
-    });
+    const post = await postRepository.findById(postId);
 
     if (!post) {
       throw new NotFoundError(`Post com id '${postId}'`);
@@ -329,20 +297,18 @@ export const boostService = {
     const now = new Date();
 
     // 2. Create CampaignAuditLog (Confirmation_Event)
-    const auditLog = await prisma.campaignAuditLog.create({
-      data: {
-        companyId,
-        actionType: "boost_confirmed",
-        source: "user",
-        userDecision: "approved",
-        userDecisionAt: now,
-        requiresConfirmation: true,
-        metadata: JSON.stringify({
-          userId,
-          postId,
-          suggestion,
-        }),
-      },
+    const auditLog = await boostRepository.createAuditLog({
+      companyId,
+      actionType: "boost_confirmed",
+      source: "user",
+      userDecision: "approved",
+      userDecisionAt: now,
+      requiresConfirmation: true,
+      metadata: JSON.stringify({
+        userId,
+        postId,
+        suggestion,
+      }),
     });
 
     logger.info("[boost] confirmBoost — audit log created", {
@@ -356,14 +322,7 @@ export const boostService = {
     // Map post platform to ad credential platform (instagram posts use meta ads).
     const adPlatform = post.platform === "instagram" ? "meta" : post.platform;
 
-    const credential = await prisma.adPlatformCredential.findFirst({
-      where: {
-        companyId,
-        platform: adPlatform,
-        isValid: true,
-      },
-      select: { id: true },
-    });
+    const credential = await credentialRepository.findValidByCompanyAndPlatform(companyId, adPlatform);
 
     if (!credential) {
       // Per Req 5.5: no valid credentials → skip AdCampaign creation.
@@ -379,20 +338,18 @@ export const boostService = {
     // 4. Create AdCampaign with campaignType = "boost"
     const campaignName = `Boost: ${post.platform} - ${now.toLocaleDateString("pt-BR")}`;
 
-    const campaign = await prisma.adCampaign.create({
-      data: {
-        companyId,
-        credentialId: credential.id,
-        platform: adPlatform,
-        campaignType: "boost",
-        name: campaignName,
-        objective: suggestion.objective,
-        dailyBudgetBrl: suggestion.dailyBudgetBrl,
-        status: "draft",
-        sourcePostId: postId,
-        boostConfirmedAt: now,
-        aiDraftJson: JSON.stringify(suggestion),
-      },
+    const campaign = await boostRepository.createAdCampaign({
+      companyId,
+      credentialId: credential.id,
+      platform: adPlatform,
+      campaignType: "boost",
+      name: campaignName,
+      objective: suggestion.objective,
+      dailyBudgetBrl: suggestion.dailyBudgetBrl,
+      status: "draft",
+      sourcePostId: postId,
+      boostConfirmedAt: now,
+      aiDraftJson: JSON.stringify(suggestion),
     });
 
     logger.info("[boost] confirmBoost — AdCampaign created", {
@@ -403,16 +360,10 @@ export const boostService = {
     });
 
     // Update audit log to reference the new campaign
-    await prisma.campaignAuditLog.update({
-      where: { id: auditLog.id },
-      data: { campaignId: campaign.id },
-    });
+    await boostRepository.updateAuditLogCampaignId(auditLog.id, campaign.id);
 
     // 5. Update post.boostCampaignId
-    await prisma.post.update({
-      where: { id: postId },
-      data: { boostCampaignId: campaign.id },
-    });
+    await postRepository.updateBoostCampaignId(postId, campaign.id);
 
     logger.info("[boost] confirmBoost — post updated with boostCampaignId", {
       companyId,

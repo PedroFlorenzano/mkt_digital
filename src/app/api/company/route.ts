@@ -57,6 +57,7 @@ export const POST = withErrorHandler(async (request: Request) => {
     objective: typeof body["objective"] === "string" ? body["objective"] : undefined,
     tone: typeof body["tone"] === "string" ? body["tone"] : undefined,
     colors: Array.isArray(body["colors"]) ? (body["colors"] as string[]) : undefined,
+    driveUrl: typeof body["driveUrl"] === "string" ? body["driveUrl"] : undefined,
   });
 
   return NextResponse.json({

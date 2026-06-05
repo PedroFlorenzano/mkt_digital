@@ -150,6 +150,7 @@ export const companyService = {
       updateData.objective = input.objective?.trim() ?? null;
     if (input.tone !== undefined) updateData.tone = input.tone;
     if (colorsStr !== undefined) updateData.colors = colorsStr;
+    if (input.driveUrl !== undefined) updateData.driveUrl = input.driveUrl?.trim() || null;
 
     const updated = await companyRepository.update(companyId, updateData);
     logger.info("[company] Updated", { companyId, userId });

@@ -3,13 +3,13 @@
  * All Prisma and repository calls are mocked.
  */
 
-import { companyService } from "../services/company.service";
-import { companyRepository } from "../repositories/company.repository";
-import { ForbiddenError, ValidationError } from "../lib/errors";
+import { companyService } from "../../services/company.service";
+import { companyRepository } from "../../repositories/company.repository";
+import { ForbiddenError, ValidationError } from "../../lib/errors";
 import type { Company } from "@prisma/client";
 
 // Mock the repository
-jest.mock("../repositories/company.repository", () => ({
+jest.mock("../../repositories/company.repository", () => ({
   companyRepository: {
     findAllByUserId: jest.fn(),
     findById: jest.fn(),
@@ -21,11 +21,11 @@ jest.mock("../repositories/company.repository", () => ({
 }));
 
 // Mock plan-guard (no limits in internal platform)
-jest.mock("../lib/plan-guard", () => ({
+jest.mock("../../lib/plan-guard", () => ({
   assertCompanyLimit: jest.fn(),
 }));
 
-jest.mock("../lib/logger", () => ({
+jest.mock("../../lib/logger", () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
@@ -42,6 +42,7 @@ function makeCompany(overrides: Partial<Company> = {}): Company {
     tone: "professional",
     logoUrl: null,
     colors: null,
+    driveUrl: null,
     createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),
     ...overrides,

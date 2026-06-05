@@ -127,9 +127,9 @@ describe("costService.getByCompanyId", () => {
 
     const waLogs = returned.filter((l) => l.type === "whatsapp_agent");
     expect(waLogs).toHaveLength(1);
-    expect(waLogs[0].companyId).toBe("cmp_01");
-    expect(waLogs[0].type).toBe("whatsapp_agent");
-    expect(waLogs[0].costUsd).toBeCloseTo(0.0055);
+    expect(waLogs[0]!.companyId).toBe("cmp_01");
+    expect(waLogs[0]!.type).toBe("whatsapp_agent");
+    expect(waLogs[0]!.costUsd).toBeCloseTo(0.0055);
   });
 
   it("includes whatsapp_agent cost in totalCost summary", async () => {

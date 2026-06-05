@@ -98,4 +98,33 @@ export const postRepository = {
       },
     });
   },
+
+  findInstagramPosts(companyId: string, statuses: string[]) {
+    return prisma.post.findMany({
+      where: { companyId, platform: "instagram", status: { in: statuses } },
+      select: { id: true, imageUrl: true, content: true, status: true, gridOrder: true, scheduledAt: true, publishedAt: true, format: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+  },
+
+  updateGridOrder(postId: string, gridOrder: number): Promise<Post> {
+    return prisma.post.update({
+      where: { id: postId },
+      data: { gridOrder },
+    });
+  },
+
+  updateBoostSuggestion(postId: string, boostSuggestionJson: string): Promise<Post> {
+    return prisma.post.update({
+      where: { id: postId },
+      data: { boostSuggestionJson },
+    });
+  },
+
+  updateBoostCampaignId(postId: string, boostCampaignId: string): Promise<Post> {
+    return prisma.post.update({
+      where: { id: postId },
+      data: { boostCampaignId },
+    });
+  },
 };

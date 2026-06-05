@@ -17,11 +17,14 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
+  ExternalLink,
+  FolderOpen,
 } from "lucide-react";
 import { DashboardLayout } from "@client/components/layout/dashboard-layout";
 import { Button } from "@client/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@client/components/ui/card";
 import { Badge } from "@client/components/ui/badge";
+import { Input } from "@client/components/ui/input";
 
 interface Company {
   id: string;
@@ -31,6 +34,7 @@ interface Company {
   tone: string;
   colors: string[] | null;
   logoUrl: string | null;
+  driveUrl: string | null;
   socialAccounts: { platform: string; connected: boolean; profileName: string | null }[];
 }
 
@@ -65,6 +69,8 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [company, setCompany] = useState<Company | null>(null);
+  const [driveUrl, setDriveUrl] = useState("");
+  const [savingDrive, setSavingDrive] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -76,7 +82,10 @@ export default function DashboardPage() {
         .then((r) => r.json())
         .then((data) => {
           if (!data?.id) router.push("/onboarding");
-          else setCompany(data);
+          else {
+            setCompany(data);
+            setDriveUrl(data.driveUrl ?? "");
+          }
         });
     }
   }, [session, router]);
@@ -237,6 +246,57 @@ export default function DashboardPage() {
               );
             })}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Drive compartilhado */}
+      <Card className="mt-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Drive Compartilhado
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Input
+              placeholder="Cole aqui o link do Drive compartilhado"
+              value={driveUrl}
+              onChange={(e) => setDriveUrl(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={savingDrive}
+              onClick={async () => {
+                setSavingDrive(true);
+                await fetch("/api/company", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ driveUrl }),
+                });
+                setSavingDrive(false);
+              }}
+            >
+              {savingDrive ? "Salvando..." : "Salvar"}
+            </Button>
+            {driveUrl && (
+              <Button
+                variant="gradient"
+                size="sm"
+                onClick={() => window.open(driveUrl, "_blank")}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Abrir Drive
+              </Button>
+            )}
+          </div>
+          {driveUrl && (
+            <p className="text-xs text-gray-400 mt-2 truncate">
+              {driveUrl}
+            </p>
+          )}
         </CardContent>
       </Card>
     </DashboardLayout>

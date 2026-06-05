@@ -30,6 +30,7 @@ export interface CompanyInput {
   objective?: string;
   tone?: string;
   colors?: string[];
+  driveUrl?: string;
 }
 
 /** Resposta do endpoint de seleção */

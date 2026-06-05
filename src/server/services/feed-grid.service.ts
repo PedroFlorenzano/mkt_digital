@@ -1,11 +1,11 @@
-import { prisma } from "@server/lib/prisma";
+import { postRepository } from "@server/repositories/post.repository";
 import { NotFoundError, ForbiddenError, ValidationError } from "@server/lib/errors";
 
 export interface FeedGridItem {
   id: string;
   imageUrl: string | null;
   content: string | null;
-  status: string; // "published" | "scheduled" | "draft"
+  status: string;
   platform: string;
   publishedAt: Date | null;
   scheduledAt: Date | null;
@@ -14,49 +14,22 @@ export interface FeedGridItem {
   createdAt: Date;
 }
 
-/**
- * Returns all Instagram posts for a company (published, scheduled, draft),
- * sorted with published posts first (by publishedAt DESC), then unscheduled/draft
- * posts by gridOrder ASC NULLS LAST, scheduledAt ASC NULLS LAST, createdAt ASC.
- */
 export async function getFeedGrid(companyId: string): Promise<FeedGridItem[]> {
-  const posts = await prisma.post.findMany({
-    where: {
-      companyId,
-      platform: "instagram",
-      status: { in: ["published", "scheduled", "draft"] },
-    },
-    select: {
-      id: true,
-      imageUrl: true,
-      content: true,
-      status: true,
-      platform: true,
-      publishedAt: true,
-      scheduledAt: true,
-      gridOrder: true,
-      format: true,
-      createdAt: true,
-    },
-  });
+  const posts = await postRepository.findInstagramPosts(companyId, ["published", "scheduled", "draft"]);
 
-  // Sort: published by publishedAt DESC, then non-published by gridOrder ASC NULLS LAST,
-  // scheduledAt ASC NULLS LAST, createdAt ASC
   posts.sort((a, b) => {
     const aPublished = a.status === "published";
     const bPublished = b.status === "published";
 
     if (aPublished && bPublished) {
-      // Both published: sort by publishedAt DESC
-      const aTime = a.publishedAt?.getTime() ?? 0;
-      const bTime = b.publishedAt?.getTime() ?? 0;
+      const aTime = (a as { publishedAt?: Date | null }).publishedAt?.getTime?.() ?? 0;
+      const bTime = (b as { publishedAt?: Date | null }).publishedAt?.getTime?.() ?? 0;
       return bTime - aTime;
     }
 
-    if (aPublished) return -1; // published comes before non-published
+    if (aPublished) return -1;
     if (bPublished) return 1;
 
-    // Both non-published: gridOrder ASC NULLS LAST
     if (a.gridOrder !== null && b.gridOrder !== null) {
       if (a.gridOrder !== b.gridOrder) return a.gridOrder - b.gridOrder;
     } else if (a.gridOrder !== null) {
@@ -65,7 +38,6 @@ export async function getFeedGrid(companyId: string): Promise<FeedGridItem[]> {
       return 1;
     }
 
-    // Then scheduledAt ASC NULLS LAST
     if (a.scheduledAt !== null && b.scheduledAt !== null) {
       const diff = a.scheduledAt.getTime() - b.scheduledAt.getTime();
       if (diff !== 0) return diff;
@@ -75,25 +47,18 @@ export async function getFeedGrid(companyId: string): Promise<FeedGridItem[]> {
       return 1;
     }
 
-    // Then createdAt ASC
     return a.createdAt.getTime() - b.createdAt.getTime();
   });
 
-  return posts;
+  return posts as FeedGridItem[];
 }
 
-/**
- * Updates the gridOrder of a non-published post.
- * Throws NotFoundError if the post doesn't exist,
- * ForbiddenError if it belongs to a different company,
- * ValidationError if the post is already published.
- */
 export async function reorderGrid(
   companyId: string,
   postId: string,
   newGridOrder: number,
 ): Promise<void> {
-  const post = await prisma.post.findUnique({ where: { id: postId } });
+  const post = await postRepository.findById(postId);
 
   if (!post) throw new NotFoundError("Post");
   if (post.companyId !== companyId) throw new ForbiddenError();
@@ -101,8 +66,5 @@ export async function reorderGrid(
     throw new ValidationError("Published posts cannot be reordered");
   }
 
-  await prisma.post.update({
-    where: { id: postId },
-    data: { gridOrder: newGridOrder },
-  });
+  await postRepository.updateGridOrder(postId, newGridOrder);
 }
